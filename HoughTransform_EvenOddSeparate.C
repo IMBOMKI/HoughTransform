@@ -135,7 +135,7 @@ void HoughTransform_EvenOddSeparate(){
   Int_t RecoHits_Single=0;
   Int_t RecoHits_Multi=0;
   
-  Float_t bandwidth=1;
+  Float_t bandwidth=4;
   Int_t nIter_band = 10;
   Float_t RecoRate_Single[10];
   Float_t RecoRate_Multi[10];
@@ -358,13 +358,13 @@ void HoughTransform_EvenOddSeparate(){
       } 
 
       if (ifSingleTurn==1){
-	TotalHits_Single=TotalHits_Single+WireEnd0.size();
-	RecoHits_Single=RecoHits_Single+nRecoHit_even+nRecoHit_odd;
+	TotalHits_Single+=WireEnd0.size();
+	RecoHits_Single+=(nRecoHit_even+nRecoHit_odd);
       }
 
       else if (ifMultiTurn==1){
-	TotalHits_Multi=TotalHits_Multi+WireEnd0.size();
-	RecoHits_Multi=RecoHits_Multi+nRecoHit_even+nRecoHit_odd;
+	TotalHits_Multi+=WireEnd0.size();
+	RecoHits_Multi+=(nRecoHit_even+nRecoHit_odd);
       }
 
       ///////////////////////////////////////////////////////////////////////////////////////////////////
