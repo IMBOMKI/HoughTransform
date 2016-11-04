@@ -35,7 +35,7 @@ void HoughTransform_BandIter_EvenOddSeparate(){
   std::string fileName = "trig_ep92_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
   TTree *t = (TTree*)f->Get("trdata");
-  std::string outputdir = "../TrackFinding/";
+  std::string outputdir = "../";
   std::string outputfileName = "fit_"+fileName;
   TFile *f_out = new TFile(TString(outputdir+outputfileName), "recreate");
   TTree *t_out = t->CloneTree(0);
