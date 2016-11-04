@@ -131,7 +131,8 @@ void Advanced_HoughTransform(){
 
     Float_t rad_uncertainty=5;
     std::pair <Float_t,Float_t> ref = std::make_pair(0,0);
-
+    //std::pair <Float_t,Float_t> ref_odd = std::make_pair(0,0);
+    //std::pair <Float_t,Float_t> ref_even = std::make_pair(0,0);
 
     Int_t rho_even_index; Int_t deg_even_index;
     Int_t rho_odd_index; Int_t deg_odd_index;    
@@ -143,10 +144,13 @@ void Advanced_HoughTransform(){
       for (Int_t it2=0; it2<3; it2++){
 
 	std::vector<std::pair<Float_t,Float_t> > origins = makeOrigins(rad_uncertainty,ref);     
+	//std::vector<std::pair<Float_t,Float_t> > origins_odd = makeOrigins(rad_uncertainty,ref_odd);     
+	//std::vector<std::pair<Float_t,Float_t> > origins_even = makeOrigins(rad_uncertainty,ref_even);     
 	std::vector<Int_t> vote_sum;
+	//std::vector<Int_t> maxvote_even;
+	//std::vector<Int_t> maxvote_odd;
 	std::vector<std::pair<Int_t,Int_t> > even_index_vec; 
 	std::vector<std::pair<Int_t,Int_t> > odd_index_vec;   
-
 
 	
 	for (Int_t it=0; it<origins.size(); it++){
@@ -156,6 +160,8 @@ void Advanced_HoughTransform(){
 
 	  if  (ifInsideDisk(oriX,oriY)==0){
 	    vote_sum.push_back(0);
+	    //maxvote_even.push_back(0);
+	    //maxvote_odd.push_back(0);
 	  }
 
 	  else if (ifInsideDisk(oriX,oriY)==1){
@@ -206,6 +212,9 @@ void Advanced_HoughTransform(){
 	  
 	  Int_t sum = vote_even->GetMaximum()+vote_odd->GetMinimum();
 	  vote_sum.push_back(sum);
+	  //maxvote_even.push_back(vote_even->GetMaximum());
+	  //maxvote_odd.push_back(vote_odd->GetMaximum());
+
 	  vote_even->GetMaximumBin(deg_even_index, rho_even_index, do_not_use);
 	  vote_odd->GetMaximumBin(deg_odd_index, rho_odd_index,do_not_use);
 
@@ -218,11 +227,18 @@ void Advanced_HoughTransform(){
 	}
 	
 	Int_t maxIndex=findMaxpoint(vote_sum);
+	//Int_t maxeven_Index=findMaxpoint(maxvote_even);
+	//Int_t maxodd_Index=findMaxpoint(maxvote_odd);
+
 	ref.first = origins[maxIndex].first; ref.second = origins[maxIndex].second;
 	rad_uncertainty = rad_uncertainty/2.0;
 	deg_even_index = even_index_vec[maxIndex].first; rho_even_index = even_index_vec[maxIndex].second;
 	deg_odd_index = odd_index_vec[maxIndex].first; rho_odd_index = odd_index_vec[maxIndex].second;
 
+	//deg_even_index = even_index_vec[maxeven_Index].first; 
+	//rho_even_index = even_index_vec[maxeven_Index].second;
+	//deg_odd_index = odd_index_vec[maxodd_Index].first; 
+	//rho_odd_index = odd_index_vec[maxodd_Index].second;
       }
       
       //std::cout << ref.first << "   " << ref.second << std::endl;
