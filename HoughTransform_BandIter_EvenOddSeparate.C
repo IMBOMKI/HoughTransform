@@ -33,7 +33,7 @@ Bool_t ifInsideBand(Float_t x, Float_t y, Float_t cX, Float_t cY, Float_t outerR
 void HoughTransform_BandIter_EvenOddSeparate(){
 
   std::string dir = "../";
-  std::string fileName = "trig_ep92_onlyPrimary.root";
+  std::string fileName = "trig_em104_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
   TTree *t = (TTree*)f->Get("trdata");
   std::string outputdir = "../";
@@ -164,8 +164,8 @@ void HoughTransform_BandIter_EvenOddSeparate(){
 
     bandwidth=i_band+1;
   
-    for (Int_t i_evt=0; i_evt < 10; i_evt++){
-
+    for (Int_t i_evt=0; i_evt < 5000; i_evt++){
+      
       nRecoHit=0;
       memset (RecoWireEnd0X, 0, sizeof(RecoWireEnd0X)); 
       memset (RecoWireEnd0Y, 0, sizeof(RecoWireEnd0Y)); 
@@ -353,9 +353,9 @@ void HoughTransform_BandIter_EvenOddSeparate(){
 	  ------------------------------------------------*/
 
 	Float_t outerR_even = rad_even + bandwidth/2.0;
-	Float_t interR_even = rad_even - bandwidth/2.0;
+	Float_t interR_even = rad_even - bandwidth/2.0-2;
 	Float_t outerR_odd = rad_odd + bandwidth/2.0;
-	Float_t interR_odd = rad_odd - bandwidth/2.0;
+	Float_t interR_odd = rad_odd - bandwidth/2.0-2;
 
 
 	for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
@@ -398,9 +398,13 @@ void HoughTransform_BandIter_EvenOddSeparate(){
     }
 
     BandWidth[i_band]=bandwidth;
-    RecoRate_Single[i_band]=Float_t(RecoHits_Single)/TotalHits_Single*100.0;
+    RecoRate_Single[i_band]=Float_t(RecoHits_Single)/TotalHits_Single*100.0;  
     RecoRate_Multi[i_band]=Float_t(RecoHits_Multi)/TotalHits_Multi*100.0;
     std::cout << "Bandwidth: " << bandwidth << std::endl;
+    std::cout << "RecoRate_Single: " << RecoRate_Single[i_band] << std::endl;
+    std::cout << "RecoRate_Multi: " << RecoRate_Multi[i_band] << std::endl;
+    std::cout << "RecoRate_Total: " << Float_t(RecoHits_Single+RecoHits_Multi)/(TotalHits_Single+TotalHits_Multi)*100.0 << std::endl;
+
   }
 
   TGraph *grRecoRate_Single=new TGraph(nIter_band,BandWidth,RecoRate_Single);

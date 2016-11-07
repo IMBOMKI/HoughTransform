@@ -29,16 +29,17 @@ Bool_t ifInsideDisk(Float_t x, Float_t y);
 std::vector<std::pair<Float_t,Float_t> > makeOrigins(Float_t rad_uncertainty, std::pair<Float_t,Float_t> ref);
 Int_t findMaxpoint(std::vector<Int_t> vec);
 Bool_t ifInsideBand(Float_t x, Float_t y, Float_t cX, Float_t cY, Float_t outerR, Float_t interR);
+Bool_t ifInsideVec(Int_t layer, std::vector<Int_t> vec);
 
 void HoughTransform_EvenOddSeparate(){
 
   std::string dir = "../";
-  std::string fileName = "trig_ep92_onlyPrimary.root";
+  std::string fileName = "trig_em104_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
   TTree *t = (TTree*)f->Get("trdata");
   std::string outputdir = "../";
-  std::string outputfileName = "fit_"+fileName;
-  TFile *f_out = new TFile(TString(outputdir+outputfileName),"recreate");
+  std::string outputfileName = "find_"+fileName;
+  TFile *f_out = new TFile(TString(outputdir+outputfileName),"RECREATE");
   TTree *t_out = t->CloneTree(0);
 
   Int_t nCDCHit;
@@ -115,7 +116,16 @@ void HoughTransform_EvenOddSeparate(){
   Float_t RecoWireEnd1X[50000];
   Float_t RecoWireEnd1Y[50000];
   Float_t RecoCDCDriftDist[50000];
-  Float_t RecoWireLayerId[50000];
+  Int_t RecoWireLayerId[50000];
+  Int_t RecoPID;
+  Int_t RecoMaxWireLayerId;
+  Bool_t Reco_ifCL3;
+  Bool_t Reco_ifSingleTurn;
+  Bool_t Reco_ifMultiTurn;
+  Float_t fittedR_even;
+  Float_t fittedR_odd;
+  Float_t drEvenToOdd;
+  Float_t TruthZ1;
 
   t_out->Branch("nRecoHit", &nRecoHit, "nRecoHit/I");
   t_out->Branch("RecoWireEnd0X", RecoWireEnd0X, "RecoWireEnd0X[nRecoHit]/F");
@@ -123,7 +133,17 @@ void HoughTransform_EvenOddSeparate(){
   t_out->Branch("RecoWireEnd1X", RecoWireEnd1X, "RecoWireEnd1X[nRecoHit]/F");
   t_out->Branch("RecoWireEnd1Y", RecoWireEnd1Y, "RecoWireEnd1Y[nRecoHit]/F");
   t_out->Branch("RecoCDCDriftDist", RecoCDCDriftDist, "RecoCDCDriftDist[nRecoHit]/F");
-  t_out->Branch("RecoWireLayerId", RecoWireLayerId, "RecoWireLayerId[nRecoHit]/F");
+  t_out->Branch("RecoWireLayerId", RecoWireLayerId, "RecoWireLayerId[nRecoHit]/I");
+  t_out->Branch("RecoPID", &RecoPID, "RecoPID/I");
+  t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/F");
+  t_out->Branch("drEvenToOdd", &drEvenToOdd, "drEvenToOdd/F");
+  t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/F");
+  t_out->Branch("RecoMaxWireLayerId", &RecoMaxWireLayerId, "RecoMaxWireLayerId/I");
+  t_out->Branch("Reco_ifCL3", &Reco_ifCL3, "Reco_ifCL3/O");
+  t_out->Branch("Reco_ifSingleTurn", &Reco_ifSingleTurn, "Reco_ifSingleTurn/O");
+  t_out->Branch("Reco_ifMultiTurn", &Reco_ifMultiTurn, "Reco_ifMultiTurn/O");  
+  t_out->Branch("fittedR_even", &fittedR_even, "fittedR_even/F");  
+  t_out->Branch("fittedR_odd", &fittedR_odd, "fittedR_odd/F");
 
   TCanvas *c_div = new TCanvas ("c_div", "c divided", 600,900);
   c_div->Divide(2,4);
@@ -153,17 +173,39 @@ void HoughTransform_EvenOddSeparate(){
   Int_t RecoHits_Single=0;
   Int_t RecoHits_Multi=0;
   
-  Float_t bandwidth=3;
+  Float_t bandwidth=5;
   Int_t nIter_band = 10;
   Float_t RecoRate_Single[10];
   Float_t RecoRate_Multi[10];
 
   /////////////////////////////////////
-  /*
-  for (Int_t i_band=0; i_band<nIter_band+1; i_band++){
-    bandwidth=i_band+1;
-  */
-  for (Int_t i_evt=0; i_evt < 5; i_evt++){
+
+  for (Int_t i_evt=0; i_evt < t->GetEntries(); i_evt++){
+    t->GetEntry(i_evt);    
+
+    ///////////////////
+    // Pre Track Cut //
+    ///////////////////
+    
+    std::cout << i_evt <<"-th Event"<< std::endl;           
+    std::cout << "  MC Hit NDF: " << nCALCDCHit << std::endl;
+
+
+
+    Bool_t ifThereisOddhit=0;
+    Bool_t ifThereisEvenhit=0;
+    if (nCALCDCHit<2) continue; // Require At least more than 2 hits
+    for (Int_t i_layer=0; i_layer<nCALCDCHit; i_layer++){  
+      if ((WireLayerId[i_layer]+1)%2==0) {ifThereisEvenhit=1;}
+      else if ((WireLayerId[i_layer]+1)%2==1) {ifThereisOddhit=1;}
+    }
+
+    if (ifThereisEvenhit==0 || ifThereisOddhit==0) continue; // Require At least one hit at odd and even layer
+
+    ///////////////////
+    // Nullification //
+    ///////////////////
+
 
     nRecoHit=0;
     memset (RecoWireEnd0X, 0, sizeof(RecoWireEnd0X)); 
@@ -172,8 +214,13 @@ void HoughTransform_EvenOddSeparate(){
     memset (RecoWireEnd1Y, 0, sizeof(RecoWireEnd1Y)); 
     memset (RecoCDCDriftDist, 0, sizeof(RecoCDCDriftDist));
     memset (RecoWireLayerId, 0, sizeof(RecoWireLayerId));
-    
-    t->GetEntry(i_evt);    
+    RecoPID=0;
+    TruthZ1=0;
+    RecoMaxWireLayerId=0;
+    Reco_ifCL3=0;
+    Reco_ifSingleTurn=0;
+    Reco_ifMultiTurn=0;
+
     
     std::vector<std::pair<Float_t,Float_t> > WireEnd0;
     std::vector<Int_t> LayerId;
@@ -219,7 +266,7 @@ void HoughTransform_EvenOddSeparate(){
     //    Main Analysis   //
     ////////////////////////
        
-    if (nCALCDCHit>=30 && WireMaxLayerId>=4 && (ifMultiTurn==1 || ifSingleTurn==1)){ 
+    //if (nCALCDCHit>=30 && WireMaxLayerId>=4 && (ifMultiTurn==1 || ifSingleTurn==1)){ Track Cut From G4Hits
 
       for (Int_t is_even=0; is_even<2; is_even++){
 
@@ -288,7 +335,6 @@ void HoughTransform_EvenOddSeparate(){
 	    }
 	  }
 
-	  
 	  Int_t maxIndex=findMaxpoint(vote_max);
 	  ref.first = origins[maxIndex].first; 
 	  ref.second = origins[maxIndex].second;
@@ -334,6 +380,8 @@ void HoughTransform_EvenOddSeparate(){
       Float_t rad_odd = sqrt(pow(cX_odd,2)+pow(cY_odd,2));
       rad_even_hist->Fill(rad_even);
       rad_odd_hist->Fill(rad_odd);
+      fittedR_even=rad_even;
+      fittedR_odd=rad_odd;
 
 
       Float_t fitpT = (rad_even/0.3356+rad_odd/0.3356)/2;
@@ -356,11 +404,12 @@ void HoughTransform_EvenOddSeparate(){
       Float_t RecoWireEnd0X_odd[10000];
       Float_t RecoWireEnd0Y_odd[10000];
       Float_t outerR_even = rad_even + bandwidth/2.0;
-      Float_t interR_even = rad_even - bandwidth/2.0;
+      Float_t interR_even = rad_even - bandwidth/2.0 - 2;
       Float_t outerR_odd = rad_odd + bandwidth/2.0;
-      Float_t interR_odd = rad_odd - bandwidth/2.0;
-
-
+      Float_t interR_odd = rad_odd - bandwidth/2.0 - 2;
+      
+      RecoMaxWireLayerId=0;
+      
       for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
 	if ((WireLayerId[i_hit]+1)%2 == 0){ // even
 	  if (ifInsideBand(WireEnd0X[i_hit],WireEnd0Y[i_hit],cX_even+ref_even.first,cY_even+ref_even.second,outerR_even,interR_even)==1){
@@ -374,6 +423,10 @@ void HoughTransform_EvenOddSeparate(){
 	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[nRecoHit];
 	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[nRecoHit];
 	    RecoWireLayerId[nRecoHit]=WireLayerId[nRecoHit];
+
+	    if (RecoWireLayerId[nRecoHit]>RecoMaxWireLayerId){
+	      RecoMaxWireLayerId=RecoWireLayerId[nRecoHit];
+	    }
 	    nRecoHit++;
 	  }
 	}
@@ -389,10 +442,14 @@ void HoughTransform_EvenOddSeparate(){
 	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[nRecoHit];
 	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[nRecoHit];
 	    RecoWireLayerId[nRecoHit]=WireLayerId[nRecoHit];
+
+	    if (RecoWireLayerId[nRecoHit]>RecoMaxWireLayerId){
+	      RecoMaxWireLayerId=RecoWireLayerId[nRecoHit];
+	    }
 	    nRecoHit++;
 	  }
 	}		
-      } 
+      }
 
 
       if (ifSingleTurn==1){
@@ -404,6 +461,79 @@ void HoughTransform_EvenOddSeparate(){
 	TotalHits_Multi+=nCALCDCHit;
 	RecoHits_Multi+=(nRecoHit_even+nRecoHit_odd);
       }
+
+      /*--------------------
+	|                  |                                      
+	|    CL3 Check     |
+	|                  |
+	-------------------*/
+
+      Float_t abs_cX_even=cX_even+ref_even.first;
+      Float_t abs_cY_even=cY_even+ref_even.second;
+      Float_t abs_cX_odd=cX_odd+ref_odd.first;
+      Float_t abs_cY_odd=cY_odd+ref_odd.second;      
+      std::vector<Int_t> domain1_layer;
+      std::vector<Int_t> domain2_layer;
+      
+      for (Int_t i_reco=0; i_reco<nRecoHit; i_reco++){
+	if ((RecoWireLayerId[i_reco]+1)%2 == 0){ //even
+	  Float_t slope = cY_even/cX_even;
+	  Float_t LHS= RecoWireEnd0Y[i_reco];
+	  Float_t RHS= slope*(RecoWireEnd0X[i_reco]-abs_cX_even)+abs_cY_even;
+	  if (LHS>RHS){
+	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
+	  }
+	  else if (LHS<RHS){
+	    domain2_layer.push_back(RecoWireLayerId[i_reco]);
+	  }
+	}
+
+	else if ((RecoWireLayerId[i_reco]+1)%2 == 1){ //odd
+	  Float_t slope = cY_odd/cX_odd;
+	  Float_t LHS= RecoWireEnd0Y[i_reco];
+	  Float_t RHS= slope*(RecoWireEnd0X[i_reco]-abs_cX_odd)+abs_cY_odd;
+	  if (LHS>RHS){
+	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
+	  }
+	  else if (LHS<RHS){
+	    domain2_layer.push_back(RecoWireLayerId[i_reco]);
+	  }
+	}
+      }
+
+      if (ifInsideVec(0,domain1_layer)==1 && ifInsideVec(1,domain1_layer)==1 && ifInsideVec(2,domain1_layer)==1){
+	if (ifInsideVec(0,domain2_layer)==1 && ifInsideVec(1,domain2_layer)==1 && ifInsideVec(2,domain2_layer)==1){
+	  Reco_ifCL3=1;
+	}
+      }
+      
+    
+      
+
+
+
+      /*--------------------------------
+	|                              |
+	|    Charge Identification     | // Need to Correct
+	|                              |
+	-------------------------------*/
+
+      /*
+      Float_t crossZ=abs_cX_odd*abs_cY_even-abs_cY_odd*abs_cX_even;
+      Int_t charge;
+
+      if (crossZ>=0){ // e-
+	RecoPID=11; 
+	charge=-1;
+      } 
+      else if (crossZ<0){ // e+
+	RecoPID=-11; 
+	charge=1;
+      } 
+      */
+
+      drEvenToOdd = sqrt(pow(abs_cX_even-abs_cX_odd,2)+pow(abs_cY_even-abs_cY_odd,2));
+      TruthZ1=CDCHitZ[0];
 
       ///////////////////////////////////////////////////////////////////////////////////////////////////
       //                                                                                               //
@@ -442,8 +572,10 @@ void HoughTransform_EvenOddSeparate(){
       
       // Hough Circles (Even, Odd)
       
-      TEllipse *circle_even = new TEllipse(cX_even+ref_even.first,cY_even+ref_even.second,rad_even,rad_even);
-      TEllipse *circle_odd = new TEllipse(cX_odd+ref_odd.first,cY_odd+ref_odd.second,rad_odd,rad_odd);
+      TEllipse *circle_even = new TEllipse(abs_cX_even,abs_cY_even,rad_even,rad_even);
+      TEllipse *circle_odd = new TEllipse(abs_cX_odd,abs_cY_odd,rad_odd,rad_odd);
+      TEllipse *center_even = new TEllipse(abs_cX_even,abs_cY_even,0.1,0.1);
+      TEllipse *center_odd = new TEllipse(abs_cX_odd,abs_cY_odd,0.1,0.1);
 
       circle_even->SetFillColor(0);
       circle_even->SetFillStyle(4000);
@@ -456,6 +588,18 @@ void HoughTransform_EvenOddSeparate(){
       circle_odd->SetLineColor(2);      
       circle_odd->SetLineWidth(1);
       circle_odd->Draw();
+
+      center_even->SetFillColor(0);
+      center_even->SetFillStyle(4000);
+      center_even->SetLineColor(4);
+      center_even->SetLineWidth(1);
+      center_even->Draw();
+      
+      center_odd->SetFillColor(0);
+      center_odd->SetFillStyle(4000);
+      center_odd->SetLineColor(2);      
+      center_odd->SetLineWidth(1);
+      center_odd->Draw();
       
       // Hits
       
@@ -489,13 +633,10 @@ void HoughTransform_EvenOddSeparate(){
       grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
       grRecoOddhits->Draw("P");      
 
-      std::cout << "  MC Even hit: " << nEvenhits << std::endl;      
-      std::cout << "  MC Odd hit: " << nOddhits << std::endl;      
-      std::cout << "  MC Hit NDF: " << nCALCDCHit << std::endl;
-      std::cout << i_evt <<"-th Event"<< std::endl;      
 
       t_out->Fill();
-    }
+      
+      //} ************ Pre-Track Cut Statement
   }
   
   c_div->cd(1);
@@ -542,11 +683,11 @@ void HoughTransform_EvenOddSeparate(){
   std::cout << "Finish!" << std::endl;
   
   f_out->cd();
-  t_out->Write();
-  //f_out->Close();
+  f_out->Write();
+  f_out->Close();
   f->cd();
   f->Close();
- 
+
 }
 
 Float_t ConfTransX(Float_t x, Float_t y){
@@ -595,6 +736,15 @@ Int_t findMaxpoint(std::vector<Int_t> vec){
 Bool_t ifInsideBand(Float_t x, Float_t y, Float_t cX, Float_t cY, Float_t outerR, Float_t interR){
   if ((pow(x-cX,2)+pow(y-cY,2))<pow(outerR,2) && (pow(x-cX,2)+pow(y-cY,2))>pow(interR,2)){
     return 1;
+  }
+  return 0;
+}
+
+Bool_t ifInsideVec(Int_t layer, std::vector<Int_t> vec){
+  for (Int_t i=0; i<vec.size(); i++){
+    if (vec[i]==layer){
+      return 1;
+    }
   }
   return 0;
 }
