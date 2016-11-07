@@ -31,6 +31,7 @@ Int_t findMaxpoint(std::vector<Int_t> vec);
 Bool_t ifInsideBand(Float_t x, Float_t y, Float_t cX, Float_t cY, Float_t outerR, Float_t interR);
 
 void HoughTransform_BandIter_EvenOddSeparate(){
+
   std::string dir = "../";
   std::string fileName = "trig_ep92_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
@@ -55,6 +56,7 @@ void HoughTransform_BandIter_EvenOddSeparate(){
   Float_t WireEnd1X[100000];
   Float_t WireEnd1Y[100000];  
   Float_t WireEnd1Z[100000];
+
   Int_t WireLayerId[100000];
   Int_t WireMaxLayerId;
   Float_t genTrE;
@@ -106,7 +108,23 @@ void HoughTransform_BandIter_EvenOddSeparate(){
   t->SetBranchAddress("ifSingleTurn", &ifSingleTurn);
   t->SetBranchAddress("ifMultiTurn", &ifMultiTurn);
   t->SetBranchAddress("nCDCHitPrimary", &nCDCHitPrimary);
+  
+  Int_t nRecoHit;
+  Float_t RecoWireEnd0X[50000];
+  Float_t RecoWireEnd0Y[50000];
+  Float_t RecoWireEnd1X[50000];
+  Float_t RecoWireEnd1Y[50000];
+  Float_t RecoCDCDriftDist[50000];
+  Float_t RecoWireLayerId[50000];
 
+  t_out->Branch("nRecoHit", &nRecoHit, "nRecoHit/I");
+  t_out->Branch("RecoWireEnd0X", RecoWireEnd0X, "RecoWireEnd0X[nRecoHit]/F");
+  t_out->Branch("RecoWireEnd0Y", RecoWireEnd0Y, "RecoWireEnd0Y[nRecoHit]/F");
+  t_out->Branch("RecoWireEnd1X", RecoWireEnd1X, "RecoWireEnd1X[nRecoHit]/F");
+  t_out->Branch("RecoWireEnd1Y", RecoWireEnd1Y, "RecoWireEnd1Y[nRecoHit]/F");
+  t_out->Branch("RecoCDCDriftDist", RecoCDCDriftDist, "RecoCDCDriftDist[nRecoHit]/F");
+  t_out->Branch("RecoWireLayerId", RecoWireLayerId, "RecoWireLayerId[nRecoHit]/F");
+  
   TCanvas *c_div = new TCanvas ("c_div", "c divided", 600,900);
   c_div->Divide(2,3);
 
@@ -129,25 +147,33 @@ void HoughTransform_BandIter_EvenOddSeparate(){
   Float_t rhomin=-0.02;
 
   //////// Bandwidth Variables ////////
-
+  
   Float_t bandwidth=1;
   Int_t nIter_band = 10;
   Float_t RecoRate_Single[nIter_band];
   Float_t RecoRate_Multi[nIter_band];
   Float_t BandWidth[nIter_band];
-  
+
   /////////////////////////////////////
   
   for (Int_t i_band=0; i_band<nIter_band; i_band++){
-
     Int_t TotalHits_Single=0;
     Int_t TotalHits_Multi=0;
     Int_t RecoHits_Single=0;
     Int_t RecoHits_Multi=0;
 
     bandwidth=i_band+1;
-
+  
     for (Int_t i_evt=0; i_evt < 10; i_evt++){
+
+      nRecoHit=0;
+      memset (RecoWireEnd0X, 0, sizeof(RecoWireEnd0X)); 
+      memset (RecoWireEnd0Y, 0, sizeof(RecoWireEnd0Y)); 
+      memset (RecoWireEnd1X, 0, sizeof(RecoWireEnd1X)); 
+      memset (RecoWireEnd1Y, 0, sizeof(RecoWireEnd1Y)); 
+      memset (RecoCDCDriftDist, 0, sizeof(RecoCDCDriftDist));
+      memset (RecoWireLayerId, 0, sizeof(RecoWireLayerId));
+
       t->GetEntry(i_evt);    
 
       std::vector<std::pair<Float_t,Float_t> > WireEnd0;
@@ -178,12 +204,6 @@ void HoughTransform_BandIter_EvenOddSeparate(){
       /////////////////////////////////////////////////////////////////////
 
       for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
-	std::pair<Float_t, Float_t> tmpPos = std::make_pair(WireEnd0X[i_hit],WireEnd0Y[i_hit]);
-	Float_t tmpLayer = WireLayerId[i_hit];
-	if (std::find(std::begin(WireEnd0), std::end(WireEnd0), tmpPos) != std::end(WireEnd0)){
-	  continue;}
-	WireEnd0.push_back(tmpPos);
-	LayerId.push_back(tmpLayer);
 
 	if ((WireLayerId[i_hit]+1)%2==0){
 	  WireEnd0X_even[nEvenhits]=WireEnd0X[i_hit];
@@ -220,7 +240,6 @@ void HoughTransform_BandIter_EvenOddSeparate(){
 
 	      Float_t oriX=origins[it].first; 
 	      Float_t oriY=origins[it].second;
-	      //Int_t neffhits=0;
 
 	      if  (ifInsideDisk(oriX,oriY)==0){
 		vote_max.push_back(0);
@@ -234,9 +253,9 @@ void HoughTransform_BandIter_EvenOddSeparate(){
 		  |                                        |
 		  -----------------------------------------*/
 
-		for (Int_t i_hit=0; i_hit<WireEnd0.size() ; i_hit++){   
-		  ConfX[i_hit] = ConfTransX(WireEnd0[i_hit].first-oriX,WireEnd0[i_hit].second-oriY);
-		  ConfY[i_hit] = ConfTransY(WireEnd0[i_hit].first-oriX,WireEnd0[i_hit].second-oriY);
+		for (Int_t i_hit=0; i_hit<nCALCDCHit ; i_hit++){   
+		  ConfX[i_hit] = ConfTransX(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
+		  ConfY[i_hit] = ConfTransY(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
 		}
 
 		/*-------------------------------------------
@@ -249,7 +268,8 @@ void HoughTransform_BandIter_EvenOddSeparate(){
 		//TNtuple * hough = new TNtuple("hough","hough", "rho:theta:hitId:wireId:is_even");
 		TH2F *vote = new TH2F("vote_even", "vote_even", nBins, 0, nBins, nBins, 0, nBins);
 
-		for (Int_t i_hit=0; i_hit<WireEnd0.size(); i_hit++){
+
+		for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
 		  memset(if_already_vote,0,sizeof(if_already_vote));
 		  for (Int_t i_Pt=0 ; i_Pt<nPt; i_Pt++){
 
@@ -258,7 +278,7 @@ void HoughTransform_BandIter_EvenOddSeparate(){
 		    Int_t tmp_deg_index = (deg)*nBins/180;
 		    Int_t tmp_rho_index = (rho+rhomax)*nBins/(rhomax-rhomin);
 
-		    if (is_even==LayerId[i_hit]%2 && if_already_vote[tmp_deg_index][tmp_rho_index][0]==0){
+		    if (is_even==WireLayerId[i_hit]%2 && if_already_vote[tmp_deg_index][tmp_rho_index][0]==0){
 		      if_already_vote[tmp_deg_index][tmp_rho_index][0]=1;
 		      vote->Fill(tmp_deg_index,tmp_rho_index);
 		    }
@@ -271,6 +291,7 @@ void HoughTransform_BandIter_EvenOddSeparate(){
 		delete vote;
 	      }
 	    }
+
 
 	    Int_t maxIndex=findMaxpoint(vote_max);
 	    ref.first = origins[maxIndex].first; 
@@ -331,43 +352,48 @@ void HoughTransform_BandIter_EvenOddSeparate(){
 	  |                                               |
 	  ------------------------------------------------*/
 
-	Int_t nRecoHit_even=0;
-	Int_t nRecoHit_odd=0;
-	Float_t RecoWireEnd0X_even[10000];
-	Float_t RecoWireEnd0Y_even[10000];
-	Float_t RecoWireEnd0X_odd[10000];
-	Float_t RecoWireEnd0Y_odd[10000];
 	Float_t outerR_even = rad_even + bandwidth/2.0;
 	Float_t interR_even = rad_even - bandwidth/2.0;
 	Float_t outerR_odd = rad_odd + bandwidth/2.0;
 	Float_t interR_odd = rad_odd - bandwidth/2.0;
 
-	for (Int_t i_hit=0; i_hit<WireEnd0.size(); i_hit++){
-	  if ((LayerId[i_hit]+1)%2 == 0){ // even
-	    if (ifInsideBand(WireEnd0[i_hit].first,WireEnd0[i_hit].second,cX_even+ref_even.first,cY_even+ref_even.second,outerR_even,interR_even)==1){
-	      RecoWireEnd0X_even[nRecoHit_even]=WireEnd0[i_hit].first;
-	      RecoWireEnd0Y_even[nRecoHit_even]=WireEnd0[i_hit].second;
-	      nRecoHit_even++;	   
+
+	for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
+	  if ((WireLayerId[i_hit]+1)%2 == 0){ // even
+	    if (ifInsideBand(WireEnd0X[i_hit],WireEnd0Y[i_hit],cX_even+ref_even.first,cY_even+ref_even.second,outerR_even,interR_even)==1){
+	      RecoWireEnd0X[nRecoHit]=WireEnd0X[nRecoHit];
+	      RecoWireEnd0Y[nRecoHit]=WireEnd0Y[nRecoHit];
+	      RecoWireEnd1X[nRecoHit]=WireEnd1X[nRecoHit];
+	      RecoWireEnd1Y[nRecoHit]=WireEnd1Y[nRecoHit];
+	      RecoCDCDriftDist[nRecoHit]=CDCDriftDist[nRecoHit];
+	      RecoWireLayerId[nRecoHit]=WireLayerId[nRecoHit];
+	      nRecoHit++;
 	    }
 	  }
-	  else if ((LayerId[i_hit]+1)%2 == 1){ // odd
-	    if (ifInsideBand(WireEnd0[i_hit].first,WireEnd0[i_hit].second,cX_odd+ref_odd.first,cY_odd+ref_odd.second,outerR_odd,interR_odd)==1){
-	      RecoWireEnd0X_odd[nRecoHit_odd]=WireEnd0[i_hit].first;
-	      RecoWireEnd0Y_odd[nRecoHit_odd]=WireEnd0[i_hit].second;
-	      nRecoHit_odd++;	    
+	  else if ((WireLayerId[i_hit]+1)%2 == 1){ // odd
+	    if (ifInsideBand(WireEnd0X[i_hit],WireEnd0Y[i_hit],cX_odd+ref_odd.first,cY_odd+ref_odd.second,outerR_odd,interR_odd)==1){
+	      RecoWireEnd0X[nRecoHit]=WireEnd0X[nRecoHit];
+	      RecoWireEnd0Y[nRecoHit]=WireEnd0Y[nRecoHit];
+	      RecoWireEnd1X[nRecoHit]=WireEnd1X[nRecoHit];
+	      RecoWireEnd1Y[nRecoHit]=WireEnd1Y[nRecoHit];
+	      RecoCDCDriftDist[nRecoHit]=CDCDriftDist[nRecoHit];
+	      RecoWireLayerId[nRecoHit]=WireLayerId[nRecoHit];
+	      nRecoHit++;
 	    }
-	  }
+	  }		
 	} 
 
 	if (ifSingleTurn==1){
-	  TotalHits_Single+=WireEnd0.size();
-	  RecoHits_Single+=(nRecoHit_even+nRecoHit_odd);
+	  TotalHits_Single+=nCALCDCHit;
+	  RecoHits_Single+=nRecoHit;
 	}
 
 	else if (ifMultiTurn==1){
-	  TotalHits_Multi+=WireEnd0.size();
-	  RecoHits_Multi+=(nRecoHit_even+nRecoHit_odd);
-	}	 
+	  TotalHits_Multi+=nCALCDCHit;
+	  RecoHits_Multi+=nRecoHit;
+	}
+
+	t_out->Fill();
       }
     }
 
@@ -391,6 +417,11 @@ void HoughTransform_BandIter_EvenOddSeparate(){
   grRecoRate_Multi->Draw("ACP");
 
   std::cout << "Finish!" << std::endl;
+
+  f_out->cd();
+  t_out->Write();
+  f_out->Close();
+  f->cd();
   f->Close();
   
 }

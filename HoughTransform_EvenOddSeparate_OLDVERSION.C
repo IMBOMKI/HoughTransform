@@ -35,7 +35,7 @@ void HoughTransform_BandIter_EvenOddSeparate(){
   std::string fileName = "trig_ep92_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
   TTree *t = (TTree*)f->Get("trdata");
-  std::string outputdir = "../TrackFinding/";
+  std::string outputdir = "../";
   std::string outputfileName = "fit_"+fileName;
   TFile *f_out = new TFile(TString(outputdir+outputfileName), "recreate");
   TTree *t_out = t->CloneTree(0);
@@ -120,7 +120,7 @@ void HoughTransform_BandIter_EvenOddSeparate(){
   TH2F *ref_even_dist = new TH2F("ref_even_dist", "ref_even_dist", 30, -10, 10, 30, -10, 10);
   TH2F *ref_odd_dist = new TH2F("ref_odd_dist", "ref_odd_dist", 30, -10, 10, 30, -10, 10);
 
-  TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);
+  //  TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);
 
   Int_t niter=3;
   Int_t nBins=100;
@@ -132,21 +132,22 @@ void HoughTransform_BandIter_EvenOddSeparate(){
 
   Float_t bandwidth=1;
   Int_t nIter_band = 10;
-
+  Float_t RecoRate_Single[nIter_band];
+  Float_t RecoRate_Multi[nIter_band];
+  Float_t BandWidth[nIter_band];
+  
   /////////////////////////////////////
   
-  for (Int_t i_band=0; i_band<nIter_band+1; i_band++){
+  for (Int_t i_band=0; i_band<nIter_band; i_band++){
 
     Int_t TotalHits_Single=0;
     Int_t TotalHits_Multi=0;
     Int_t RecoHits_Single=0;
     Int_t RecoHits_Multi=0;
-    Float_t RecoRate_Single[nIter_band];
-    Float_t RecoRate_Multi[nIter_band];
 
     bandwidth=i_band+1;
 
-    for (Int_t i_evt=0; i_evt < 30; i_evt++){
+    for (Int_t i_evt=0; i_evt < 10; i_evt++){
       t->GetEntry(i_evt);    
 
       std::vector<std::pair<Float_t,Float_t> > WireEnd0;
@@ -370,9 +371,24 @@ void HoughTransform_BandIter_EvenOddSeparate(){
       }
     }
 
+    BandWidth[i_band]=bandwidth;
     RecoRate_Single[i_band]=Float_t(RecoHits_Single)/TotalHits_Single*100.0;
     RecoRate_Multi[i_band]=Float_t(RecoHits_Multi)/TotalHits_Multi*100.0;
+    std::cout << "Bandwidth: " << bandwidth << std::endl;
   }
+
+  TGraph *grRecoRate_Single=new TGraph(nIter_band,BandWidth,RecoRate_Single);
+  TGraph *grRecoRate_Multi=new TGraph(nIter_band,BandWidth,RecoRate_Multi);
+  c_div->cd(1);
+  grRecoRate_Single->SetTitle("Single Turn Hit Reco Rate");
+  grRecoRate_Single->SetMarkerStyle(20);
+  grRecoRate_Single->SetMarkerColor(2);
+  grRecoRate_Single->Draw("ACP");
+  c_div->cd(2);
+  grRecoRate_Multi->SetTitle("Multi Turn Hit Reco Rate");
+  grRecoRate_Multi->SetMarkerStyle(20);
+  grRecoRate_Multi->SetMarkerColor(4);
+  grRecoRate_Multi->Draw("ACP");
 
   std::cout << "Finish!" << std::endl;
   f->Close();
