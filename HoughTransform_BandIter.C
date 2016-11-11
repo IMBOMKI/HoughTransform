@@ -30,21 +30,15 @@ std::vector<std::pair<Float_t,Float_t> > makeOrigins(Float_t rad_uncertainty, st
 Int_t findMaxpoint(std::vector<Int_t> vec);
 Bool_t ifInsideBand(Float_t x, Float_t y, Float_t cX, Float_t cY, Float_t outerR, Float_t interR);
 Bool_t ifInsideVec(Int_t layer, std::vector<Int_t> vec);
-Float_t twoPtDistance(Float_t x1, Float_t y1, Float_t x2, Float_t y2);
-Bool_t ifInsideClusterSet(std::tuple< Float_t, Float_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Float_t, Float_t, Int_t> > > ClusterSet);
-void FindMatchedCluster(std::tuple< Float_t, Float_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Float_t, Float_t, Int_t> > > ClusterSet);
-Bool_t ifLayerIsEmptyInCluster(Int_t layer,std::vector < std::vector <std::tuple <Float_t, Float_t, Int_t> > > ClusterSet);
-bool sortFunction (int i,int j) { return (i<j); }
-void MakeCluster(std::vector<Int_t> &WireIds, std::vector<std::vector< Int_t> > &ClusterSet, Int_t WireNumberInLayer);
 
-void HoughTransform_EvenOddSeparate(){
+void HoughTransform_BandIter(int bw){
 
   std::string dir = "../";
   std::string fileName = "trig_em104_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
   TTree *t = (TTree*)f->Get("trdata");
   std::string outputdir = "FindedEvents/";
-  std::string outputfileName = "find_"+fileName;
+  std::string outputfileName = "bw"+std::to_string(bw)+"_"+"find_"+fileName;
   TFile *f_out = new TFile(TString(outputdir+outputfileName),"recreate");
   TTree *t_out = t->CloneTree(0);
 
@@ -55,19 +49,17 @@ void HoughTransform_EvenOddSeparate(){
   Float_t CDCHitT[100000];
   Float_t CDCEDep[100000];
   Int_t nCALCDCHit;
-  Float_t CDCDriftDist[50000];
-  Int_t CDCCharge[50000];
-  Float_t WireEnd0X[50000];
-  Float_t WireEnd0Y[50000];  
-  Float_t WireEnd0Z[50000];
-  Float_t WireEnd1X[50000];
-  Float_t WireEnd1Y[50000];  
-  Float_t WireEnd1Z[50000];
-  Int_t WireLayerId[50000];
+  Float_t CDCDriftDist[100000];
+  Int_t CDCCharge[100000];
+  Float_t WireEnd0X[100000];
+  Float_t WireEnd0Y[100000];  
+  Float_t WireEnd0Z[100000];
+  Float_t WireEnd1X[100000];
+  Float_t WireEnd1Y[100000];  
+  Float_t WireEnd1Z[100000];
+
+  Int_t WireLayerId[100000];
   Int_t WireMaxLayerId;
-  Int_t WireId[50000];
-
-
   Float_t genTrE;
   Float_t genTrPx;
   Float_t genTrPy;
@@ -83,7 +75,6 @@ void HoughTransform_EvenOddSeparate(){
   Int_t nCDCHitPrimary;
   Bool_t ifSingleTurn;
   Bool_t ifMultiTurn;
-
 
   t->SetBranchAddress("nCDCHit", &nCDCHit);
   t->SetBranchAddress("CDCHitX", CDCHitX);  
@@ -101,7 +92,6 @@ void HoughTransform_EvenOddSeparate(){
   t->SetBranchAddress("WireEnd1Z", WireEnd1Z);
   t->SetBranchAddress("WireLayerId", WireLayerId);
   t->SetBranchAddress("WireMaxLayerId", &WireMaxLayerId);
-  t->SetBranchAddress("WireId", WireId);
 
   t->SetBranchAddress("genTrE", &genTrE);
   t->SetBranchAddress("genTrPx", &genTrPx);
@@ -137,8 +127,6 @@ void HoughTransform_EvenOddSeparate(){
   Float_t drEvenToOdd;
   Float_t TruthZ1;
 
-
-
   t_out->Branch("nRecoHit", &nRecoHit, "nRecoHit/I");
   t_out->Branch("RecoWireEnd0X", RecoWireEnd0X, "RecoWireEnd0X[nRecoHit]/F");
   t_out->Branch("RecoWireEnd0Y", RecoWireEnd0Y, "RecoWireEnd0Y[nRecoHit]/F");
@@ -157,8 +145,11 @@ void HoughTransform_EvenOddSeparate(){
   t_out->Branch("fittedR_even", &fittedR_even, "fittedR_even/F");  
   t_out->Branch("fittedR_odd", &fittedR_odd, "fittedR_odd/F");
 
+  /*
   TCanvas *c_div = new TCanvas ("c_div", "c divided", 600,900);
   c_div->Divide(2,4);
+  TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);
+  */
 
   //TH1F *maxvote_even_hist = new TH1F("maxvote_even_hist","max_even_vote_hist", 100, 0, 100);
   //TH1F *maxvote_odd_hist = new TH1F("maxvote_odd_hist","max_odd_vote_hist", 100, 0, 100);
@@ -170,11 +161,7 @@ void HoughTransform_EvenOddSeparate(){
   TH2F *ref_even_dist = new TH2F("ref_even_dist", "ref_even_dist", 30, -10, 10, 30, -10, 10);
   TH2F *ref_odd_dist = new TH2F("ref_odd_dist", "ref_odd_dist", 30, -10, 10, 30, -10, 10);
  
-  TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);
-
-  Int_t NumOfLayers=18;
-  Int_t NumOfWiresPerLayer[18]={198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300};
-
+  
   Int_t niter=3;
   Int_t nBins=100;
   Float_t nPt=1000.0;
@@ -188,24 +175,25 @@ void HoughTransform_EvenOddSeparate(){
   Int_t RecoHits_Single=0;
   Int_t RecoHits_Multi=0;
   
-  Float_t bandwidth=8;
+  Int_t bandwidth=bw;
   Int_t nIter_band = 10;
   Float_t RecoRate_Single[10];
   Float_t RecoRate_Multi[10];
 
   /////////////////////////////////////
 
-  for (Int_t i_evt=0; i_evt < 10; i_evt++){
+  for (Int_t i_evt=0; i_evt < t->GetEntries(); i_evt++){
     t->GetEntry(i_evt);    
-
-    std::cout << "-------------------------" << std::endl;
-    std::cout << i_evt <<"-th Event"<< std::endl;           
-    std::cout << "MC Hit NDF: " << nCALCDCHit << std::endl;
 
     ///////////////////
     // Pre Track Cut //
     ///////////////////
     
+    std::cout << i_evt <<"-th Event"<< std::endl;           
+    std::cout << "  MC Hit NDF: " << nCALCDCHit << std::endl;
+
+
+
     Bool_t ifThereisOddhit=0;
     Bool_t ifThereisEvenhit=0;
     if (nCALCDCHit<2) continue; // Require At least more than 2 hits
@@ -219,6 +207,7 @@ void HoughTransform_EvenOddSeparate(){
     ///////////////////
     // Nullification //
     ///////////////////
+
 
     nRecoHit=0;
     memset (RecoWireEnd0X, 0, sizeof(RecoWireEnd0X)); 
@@ -258,16 +247,11 @@ void HoughTransform_EvenOddSeparate(){
     Int_t rho_odd_index;
     std::pair <Float_t,Float_t> ref_odd;
 
-    //////////////////////////////////////////////////////////
-    // Sort Even, Odd Hit for Visulaization  &&  Clustering //
-    //////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////
+    // Remove MultiPosition Hit & Sort Even, Odd Hit for Visulaization //
+    /////////////////////////////////////////////////////////////////////
 
-    std::vector<Int_t> WireIdsPerLayer[18];
-    std::vector< std::vector <Int_t> > ClusterSet;
-      
     for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
-
-      // Sort Even, Odd Hit
       if ((WireLayerId[i_hit]+1)%2==0){
 	WireEnd0X_even[nEvenhits]=WireEnd0X[i_hit];
 	WireEnd0Y_even[nEvenhits]=WireEnd0Y[i_hit];
@@ -278,38 +262,16 @@ void HoughTransform_EvenOddSeparate(){
 	WireEnd0Y_odd[nOddhits]=WireEnd0Y[i_hit];
 	nOddhits++;
       }
-      
-      // Sort Layer of Hits
-      Int_t layerid=WireLayerId[i_hit];
-      if(std::find(WireIdsPerLayer[layerid].begin(), WireIdsPerLayer[layerid].end(), WireId[i_hit]) != WireIdsPerLayer[layerid].end()){
-	continue;
-      }
-      WireIdsPerLayer[layerid].push_back(WireId[i_hit]);    	  
-      
-    }
-    
-    // Sort one more time from smallest to biggest 
-    
-    for (Int_t i_layer=0; i_layer<NumOfLayers; i_layer++){
-      std::sort (WireIdsPerLayer[i_layer].begin(), WireIdsPerLayer[i_layer].end(), sortFunction);
-      for (Int_t i_ele=0; i_ele<WireIdsPerLayer[i_layer].size(); i_ele++){
-      }
-      MakeCluster(WireIdsPerLayer[i_layer],ClusterSet, NumOfWiresPerLayer[i_layer]);
-    }
-
-    for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
-      for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
-	//std::cout << ClusterSet[i_clu][i_ele] << "  ";      
-      }
-      //std::cout << std::endl;
     }
 
     ////////////////////////
     //    Main Analysis   //
     ////////////////////////
        
+    //if (nCALCDCHit>=30 && WireMaxLayerId>=4 && (ifMultiTurn==1 || ifSingleTurn==1)){ Track Cut From G4Hits
+
       for (Int_t is_even=0; is_even<2; is_even++){
-	  
+
 	Float_t rad_uncertainty=5;
 	std::pair <Float_t,Float_t> ref = std::make_pair(0,0);
 
@@ -502,16 +464,6 @@ void HoughTransform_EvenOddSeparate(){
 	RecoHits_Multi+=(nRecoHit_even+nRecoHit_odd);
       }
 
-
-      /*-----------------------------------------------------------
-	|                                                         |
-	|           Count Non-Recognized Hits in Cluster          |
-	|                                                         |
-	----------------------------------------------------------*/
-
-
-
-
       /*--------------------
 	|                  |                                      
 	|    CL3 Check     |
@@ -524,15 +476,12 @@ void HoughTransform_EvenOddSeparate(){
       Float_t abs_cY_odd=cY_odd+ref_odd.second;      
       std::vector<Int_t> domain1_layer;
       std::vector<Int_t> domain2_layer;
-
-      Float_t slope_even = cY_even/cX_even;
-      Float_t slope_odd  = cY_odd/cX_odd;
-
+      
       for (Int_t i_reco=0; i_reco<nRecoHit; i_reco++){
 	if ((RecoWireLayerId[i_reco]+1)%2 == 0){ //even
-
+	  Float_t slope = cY_even/cX_even;
 	  Float_t LHS= RecoWireEnd0Y[i_reco];
-	  Float_t RHS= slope_even*(RecoWireEnd0X[i_reco]-abs_cX_even)+abs_cY_even;
+	  Float_t RHS= slope*(RecoWireEnd0X[i_reco]-abs_cX_even)+abs_cY_even;
 	  if (LHS>RHS){
 	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
 	  }
@@ -542,8 +491,9 @@ void HoughTransform_EvenOddSeparate(){
 	}
 
 	else if ((RecoWireLayerId[i_reco]+1)%2 == 1){ //odd
+	  Float_t slope = cY_odd/cX_odd;
 	  Float_t LHS= RecoWireEnd0Y[i_reco];
-	  Float_t RHS= slope_odd*(RecoWireEnd0X[i_reco]-abs_cX_odd)+abs_cY_odd;
+	  Float_t RHS= slope*(RecoWireEnd0X[i_reco]-abs_cX_odd)+abs_cY_odd;
 	  if (LHS>RHS){
 	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
 	  }
@@ -558,20 +508,11 @@ void HoughTransform_EvenOddSeparate(){
 	  Reco_ifCL3=1;
 	}
       }
+      
+    
+      
 
-      /*
-      if (!domain1_layer.empty() && !domain2_layer.empty()){
-	std::cout << "Domain 1" << std::endl;
-	for (Int_t i_cl = 0 ; i_cl<domain1_layer.size() ; i_cl++){
-	  std::cout << domain1_layer[i_cl] << std::endl;
-	}
-	std::cout << "Domain 2" << std::endl;
-	
-	for (Int_t i_cl = 0 ; i_cl<domain2_layer.size() ; i_cl++){
-	  std::cout << domain2_layer[i_cl] << std::endl;
-	}
-      }
-      */
+
 
       /*--------------------------------
 	|                              |
@@ -607,7 +548,7 @@ void HoughTransform_EvenOddSeparate(){
 	|   Wire Hit Drawing with Hough Circle    |
 	|                                         |
 	------------------------------------------*/
-      
+      /*      
       c_hits->cd();
       c_hits->DrawFrame(-90,-90,90,90);
       
@@ -693,36 +634,13 @@ void HoughTransform_EvenOddSeparate(){
       grRecoOddhits->SetMarkerSize(1);
       grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
       grRecoOddhits->Draw("P");      
-
-      // Center crossing line
-
-      Int_t nPoints = 8;
-      Float_t xLine_even[nPoints];
-      Float_t yLine_even[nPoints];
-      Float_t xLine_odd[nPoints];
-      Float_t yLine_odd[nPoints];
-
-      for (Int_t i_line=0; i_line<nPoints; i_line++) {	
-	xLine_even[i_line] = i_line*10;
-	yLine_even[i_line] = slope_even*(xLine_even[i_line]-abs_cX_even)+abs_cY_even;
-      }
-      for (Int_t i_line=0; i_line<nPoints; i_line++) {
-	xLine_odd[i_line] = i_line*10;
-	yLine_odd[i_line] = slope_odd*(xLine_odd[i_line]-abs_cX_odd)+abs_cY_odd;
-      }
-
-      TGraph *crossingLine_even = new TGraph(nPoints, xLine_even, yLine_even);
-      crossingLine_even->SetLineColor(4);
-      crossingLine_even->Draw("L");
-
-      TGraph *crossingLine_odd = new TGraph(nPoints, xLine_odd, yLine_odd);
-      crossingLine_odd->SetLineColor(2);
-      crossingLine_odd->Draw("L");
+      */
 
       t_out->Fill();
-
+      
+      //} ************ Pre-Track Cut Statement
   }
-  
+  /*
   c_div->cd(1);
   diff_hist->SetLineColor(4);
   diff_hist->SetFillColor(4);
@@ -755,7 +673,7 @@ void HoughTransform_EvenOddSeparate(){
   ref_even_dist->Draw("colz");
   c_div->cd(6);
   ref_odd_dist->Draw("colz");
-  
+  */
   /*
   std::cout << RecoHits_Single << std::endl;
   std::cout << TotalHits_Single << std::endl;
@@ -831,98 +749,4 @@ Bool_t ifInsideVec(Int_t layer, std::vector<Int_t> vec){
     }
   }
   return 0;
-}
-
-Float_t twoPtDistance(Float_t x1, Float_t y1, Float_t x2, Float_t y2){
-  return sqrt(pow(x2-x1,2)+pow(y2-y1,2));
-}
-
-Bool_t ifInsideClusterSet(std::tuple< Float_t, Float_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Float_t, Float_t, Int_t> > > ClusterSet){
-  Bool_t isInside=0;
-  if (ClusterSet.empty()==1){return isInside;}
-
-  for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
-    for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
-      if (tmpXYL == ClusterSet[i_clu][i_ele]){
-	isInside=1;
-	break;
-      }
-    }
-  } 
-
-  return isInside;  
-}
-
-void FindMatchedCluster(std::tuple< Float_t, Float_t, Int_t> tmpXYL, std::vector < std::vector <std::tuple <Float_t, Float_t, Int_t> > > ClusterSet){
-
-  if (!ClusterSet.empty()){
-      for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
-	for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
-	  if (std::get<2>(tmpXYL)==std::get<2>(ClusterSet[i_clu][i_ele])){
-	    if (twoPtDistance(std::get<0>(tmpXYL),std::get<1>(tmpXYL),std::get<0>(ClusterSet[i_clu][i_ele]),std::get<1>(ClusterSet[i_clu][i_ele]))<2){
-	      ClusterSet[i_clu].push_back(tmpXYL);	     	      
-	    }
-	  }
-	}
-      }   
-    }
-}
-
-Bool_t ifLayerIsEmptyInCluster(Int_t layer,std::vector < std::vector <std::tuple <Float_t, Float_t, Int_t> > > ClusterSet){
-  Bool_t isEmpty=1;
-  if (ClusterSet.empty()==1) { return isEmpty;}
-  else if (!ClusterSet.empty()){
-    for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
-      for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
-	if (layer==std::get<2>(ClusterSet[i_clu][i_ele])){
-	  isEmpty=0;
-	  return isEmpty;
-	}
-      }   
-    }
-  }
-  return isEmpty;
-}
-
-void MakeCluster(std::vector<Int_t> &WireIds, std::vector<std::vector< Int_t> > &ClusterSet, Int_t WireNumberInLayer)
-{
-  if (!WireIds.empty()){
-    std::vector<Int_t> tmpCluster;
-    std::vector<Int_t> firstCluster;
-    tmpCluster.push_back(WireIds[0]);
-    firstCluster.push_back(WireIds[0]);
-
-    for(Int_t i_id = 1; i_id < WireIds.size(); ++i_id){
-      if(WireIds[i_id] == WireIds[i_id-1] + 1){
-	tmpCluster.push_back(WireIds[i_id]);
-	
-	if (i_id==WireIds.size()-1){ // Last element 
-	  // 1. Check if it satisfies periodic boundary condition with first id of layer
-	  if (WireIds[i_id]-WireIds[0]+1==WireNumberInLayer){
-	    firstCluster.insert(firstCluster.end(), tmpCluster.begin(),tmpCluster.end());	    
-	    ClusterSet.push_back(firstCluster);	
-	    //	    std::cout << "Found Periodic Boundary!" << std::endl;
-	  }
-	  // 2. Otherwise, just push it.
-	  else{
-	    ClusterSet.push_back(firstCluster);
-	    ClusterSet.push_back(tmpCluster);
-	  }
-  
-	}
-
-      }
-      else if (WireIds[i_id] != WireIds[i_id-1] + 1){
-	if (std::find(tmpCluster.begin(), tmpCluster.end(), WireIds[0]) != tmpCluster.end()){
-	  firstCluster=tmpCluster;
-	}
-	else {
-	  ClusterSet.push_back(tmpCluster);
-	}
-	tmpCluster.clear();
-	tmpCluster.push_back(WireIds[i_id]);
-      }
-    }
-
-  }
 }
