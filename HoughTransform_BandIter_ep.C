@@ -30,20 +30,25 @@ std::vector<std::pair<Double_t,Double_t> > makeOrigins(Double_t rad_uncertainty,
 Int_t findMaxpoint(std::vector<Int_t> vec);
 Bool_t ifInsideBand(Double_t x, Double_t y, Double_t cX, Double_t cY, Double_t outerR, Double_t interR);
 Bool_t ifInsideVec(Int_t element, std::vector<Int_t> vec);
+/*
 Double_t twoPtDistance(Double_t x1, Double_t y1, Double_t x2, Double_t y2);
+Bool_t ifInsideClusterSet(std::tuple< Double_t, Double_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet);
+void FindMatchedCluster(std::tuple< Double_t, Double_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet);
+Bool_t ifLayerIsEmptyInCluster(Int_t layer,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet);
+*/
 bool sortFunction (int i,int j) { return (i<j); }
 void MakeCluster(std::vector<Int_t> &WireIds, std::vector<std::vector< Int_t> > &ClusterSet, Int_t WireNumberInLayer);
 bool ifInsideArray(Int_t wireid, Int_t *reco_ids, Int_t arr_size);
 
 
-void HoughTransform_EvenOddSeparate(){
+void HoughTransform_BandIter_ep(int bw){
 
   std::string dir = "../";
-  std::string fileName = "trig_em104_onlyPrimary.root";
+  std::string fileName = "trig_ep92_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
   TTree *t = (TTree*)f->Get("trdata");
   std::string outputdir = "FindedEvents/";
-  std::string outputfileName = "find_"+fileName;
+  std::string outputfileName = "bw"+std::to_string(bw)+"_"+"find_"+fileName;
   TFile *f_out = new TFile(TString(outputdir+outputfileName),"recreate");
   TTree *t_out = t->CloneTree(0);
 
@@ -122,10 +127,8 @@ void HoughTransform_EvenOddSeparate(){
   Int_t nRecoHit;
   Double_t RecoWireEnd0X[30000];
   Double_t RecoWireEnd0Y[30000];
-  Double_t RecoWireEnd0Z[30000];
   Double_t RecoWireEnd1X[30000];
   Double_t RecoWireEnd1Y[30000];
-  Double_t RecoWireEnd1Z[30000];
   Double_t RecoCDCDriftDist[30000];
   Int_t RecoWireLayerId[30000];
   Int_t RecoWireId[30000];
@@ -150,6 +153,7 @@ void HoughTransform_EvenOddSeparate(){
   t_out->Branch("RecoPID", &RecoPID, "RecoPID/I");
   t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/D");
   t_out->Branch("drEvenToOdd", &drEvenToOdd, "drEvenToOdd/D");
+  t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/D");
   t_out->Branch("RecoMaxWireLayerId", &RecoMaxWireLayerId, "RecoMaxWireLayerId/I");
   t_out->Branch("Reco_ifCL3", &Reco_ifCL3, "Reco_ifCL3/O");
   t_out->Branch("Reco_ifSingleTurn", &Reco_ifSingleTurn, "Reco_ifSingleTurn/O");
@@ -167,17 +171,13 @@ void HoughTransform_EvenOddSeparate(){
   TH1F *diff_hist = new TH1F("diff","fitpT-truthpT",200,-100,100) ;
   TH1F *rad_even_hist = new TH1F("rad_even_hist","rad_even_hist", 100, 0, 50);
   TH1F *rad_odd_hist = new TH1F("rad_odd_hist","rad_odd_hist", 100, 0, 50);
-  TH2F *ref_even_dist = new TH2F("ref_even_dist", "ref_even_dist", 10, -10, 10, 10, -10, 10);
-  TH2F *ref_odd_dist = new TH2F("ref_odd_dist", "ref_odd_dist", 10, -10, 10, 10, -10, 10);
+  TH2F *ref_even_dist = new TH2F("ref_even_dist", "ref_even_dist", 30, -10, 10, 30, -10, 10);
+  TH2F *ref_odd_dist = new TH2F("ref_odd_dist", "ref_odd_dist", 30, -10, 10, 30, -10, 10);
  
   TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);
-  //TCanvas *c_useful = new TCanvas("c_useful", "c_useful", 1000,1000);
-  //c_useful->Divide(2,2);
 
   Int_t NumOfLayers=18;
-  Int_t NumOfWiresPerLayer[18]={198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300}; // Count only "Actual" Sense Wires
-  Double_t LayerRadius[18]={53.0, 54.6, 56.2, 57.8, 59.4, 61.0, 62.6, 64.2, 65.8, 67.4, 69.0, 70.6, 72.2, 73.8, 75.4, 77.0, 78.6, 80.2};
-  Double_t LayerStereo[18]={-67.899, 67.640, -67.384, 67.129, -66.876, 66.625, -66.376, 66.129, -65.884, 65.640, -65.398, 65.158, -64.920, 64.683, -75.132, 74.862, -74.593, 74.326};
+  Int_t NumOfWiresPerLayer[18]={198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300};
 
   Int_t niter=3;
   Int_t nBins=100;
@@ -192,14 +192,14 @@ void HoughTransform_EvenOddSeparate(){
   Int_t RecoHits_Single=0;
   Int_t RecoHits_Multi=0;
   
-  Double_t bandwidth=8;
+  Double_t bandwidth=bw;
   Int_t nIter_band = 10;
   Double_t RecoRate_Single[10];
   Double_t RecoRate_Multi[10];
 
   /////////////////////////////////////
 
-  for (Int_t i_evt=0; i_evt <15; i_evt++){
+  for (Int_t i_evt=0; i_evt < t->GetEntries(); i_evt++){
     t->GetEntry(i_evt);    
 
     std::cout << "-------------------------" << std::endl;
@@ -243,21 +243,14 @@ void HoughTransform_EvenOddSeparate(){
     std::vector<Int_t> LayerId;
     Int_t nEvenhits=0;
     Int_t nOddhits=0;    
-    Double_t WireEnd0X_even[30000];
-    Double_t WireEnd0Y_even[30000];  
-    Double_t WireEnd0X_odd[30000];
-    Double_t WireEnd0Y_odd[30000];
+    Double_t WireEnd0X_even[10000];
+    Double_t WireEnd0Y_even[10000];  
+    Double_t WireEnd0X_odd[10000];
+    Double_t WireEnd0Y_odd[10000];
 
-    Double_t ConfX[30000];
-    Double_t ConfY[30000];
-    /*
-    Int_t nConfEven=0;
-    Int_t nConfOdd=0;
-    Double_t ConfX_even[30000];
-    Double_t ConfX_odd[30000];
-    Double_t ConfY_even[30000];
-    Double_t ConfY_odd[30000];
-    */
+    Double_t ConfX[100000];
+    Double_t ConfY[100000];
+
     Int_t deg_index;    
     Int_t rho_index;
     Int_t do_not_use;
@@ -279,19 +272,6 @@ void HoughTransform_EvenOddSeparate(){
 
     for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
 
-      /*
-      Double_t theta0=TMath::ATan(WireEnd0Y[i_hit]/WireEnd0X[i_hit]);
-      Double_t theta1=TMath::ATan(WireEnd1Y[i_hit]/WireEnd1X[i_hit]);;
-
-      Int_t layernumber=WireLayerId[i_hit];
-      Double_t tiltAngle=TMath::ATan(2*LayerRadius[layernumber]/(WireEnd1Z[i_hit]-WireEnd0Z[i_hit]) * TMath::Sin((theta1-theta0)/2));
-      //std::cout << layernumber <<"   " << tiltAngle<< "   " << TMath::Tan(LayerStereo[layernumber]/1000) << "   " << theta1-theta0 << std::endl;
-      //std::cout << layernumber <<"   " << LayerRadius[layernumber]/(WireEnd1Z[i_hit]-WireEnd0Z[i_hit])* (theta1-theta0) << "   " << TMath::Tan(LayerStereo[layernumber]/1000) << std::endl;
-
-      std::cout <<WireLayerId[i_hit]  <<"   " <<  WireEnd0Z[i_hit] << "   " << WireEnd1Z[i_hit] << std::endl;
-
-      */
-
       // Sort Even, Odd Hit
       if ((WireLayerId[i_hit]+1)%2==0){
 	WireEnd0X_even[nEvenhits]=WireEnd0X[i_hit];
@@ -309,9 +289,10 @@ void HoughTransform_EvenOddSeparate(){
       if(std::find(WireIdsPerLayer[layerid].begin(), WireIdsPerLayer[layerid].end(), WireId[i_hit]) != WireIdsPerLayer[layerid].end()){
 	continue;
       }
-      WireIdsPerLayer[layerid].push_back(WireId[i_hit]);    	        
+      WireIdsPerLayer[layerid].push_back(WireId[i_hit]);    	  
+      
     }
-
+    
     // Sort one more time from smallest to biggest 
     // + Make Clusters and push into ClusterSet
     
@@ -356,40 +337,17 @@ void HoughTransform_EvenOddSeparate(){
 	    
             else if (ifInsideDisk(oriX,oriY)==1){
 	      
-	      /*------------------------------------------
+	      /*---------------------------------------
 		|                                        |
 		|      Conformal Transformation          |
 		|                                        |
 		-----------------------------------------*/
-	      memset(ConfX,0,sizeof(ConfX));
-	      memset(ConfY,0,sizeof(ConfY));
-	      /*
-	      memset(ConfX_even,0,sizeof(ConfX_even));
-	      memset(ConfY_even,0,sizeof(ConfY_even));
-	      memset(ConfX_odd,0,sizeof(ConfX_odd));
-	      memset(ConfY_odd,0,sizeof(ConfY_odd));
-	      
-	      nConfEven=0;
-	      nConfOdd=0;
-	      */      	      
+	      	      	      
 	      for (Int_t i_hit=0; i_hit<nCALCDCHit ; i_hit++){   
 		ConfX[i_hit] = ConfTransX(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
 		ConfY[i_hit] = ConfTransY(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
-		/*
-		if ((WireLayerId[i_hit]+1)%2 == 0){ //even
-		  ConfX_even[nConfEven] =  ConfTransX(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
-		  ConfY_even[nConfEven] =  ConfTransY(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
-		  nConfEven++;
-		}
-		else if ((WireLayerId[i_hit]+1)%2 == 1){ //even
-		  ConfX_odd[nConfOdd] =  ConfTransX(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
-		  ConfY_odd[nConfOdd] =  ConfTransY(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
-		  nConfOdd++;
-		}
-		*/
 	      }
-
-
+	      
 	      /*-------------------------------------------
 		|                                         |
 		|      Hough Transformation & Voting      |
@@ -488,10 +446,10 @@ void HoughTransform_EvenOddSeparate(){
       
       Int_t nRecoHit_even=0;
       Int_t nRecoHit_odd=0;
-      Double_t RecoWireEnd0X_even[30000];
-      Double_t RecoWireEnd0Y_even[30000];
-      Double_t RecoWireEnd0X_odd[30000];
-      Double_t RecoWireEnd0Y_odd[30000];
+      Double_t RecoWireEnd0X_even[10000];
+      Double_t RecoWireEnd0Y_even[10000];
+      Double_t RecoWireEnd0X_odd[10000];
+      Double_t RecoWireEnd0Y_odd[10000];
       Double_t outerR_even = rad_even + bandwidth/2.0;
       Double_t interR_even = rad_even - bandwidth/2.0;
       Double_t outerR_odd = rad_odd + bandwidth/2.0;
@@ -593,11 +551,8 @@ void HoughTransform_EvenOddSeparate(){
 	    
 	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
 	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
-	    RecoWireEnd0Z[nRecoHit]=WireEnd0Z[i_hit];
 	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
 	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
-	    RecoWireEnd1Z[nRecoHit]=WireEnd1Z[i_hit];
-
 	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
 	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
 	    RecoWireId[nRecoHit]=WireId[i_hit];
@@ -615,10 +570,8 @@ void HoughTransform_EvenOddSeparate(){
 	    
 	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
 	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
-	    RecoWireEnd0Z[nRecoHit]=WireEnd0Z[i_hit];
 	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
 	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
-	    RecoWireEnd1Z[nRecoHit]=WireEnd1Z[i_hit];
 	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
 	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
 	    RecoWireId[nRecoHit]=WireId[i_hit];
@@ -642,10 +595,8 @@ void HoughTransform_EvenOddSeparate(){
       Double_t abs_cY_even=cY_even+ref_even.second;
       Double_t abs_cX_odd=cX_odd+ref_odd.first;
       Double_t abs_cY_odd=cY_odd+ref_odd.second;      
-      std::vector< Int_t > domain1_layer;
-      std::vector< Int_t > domain2_layer;
-      std::vector< std::tuple <Int_t, Double_t, Double_t> > domain1_XY;
-      std::vector< std::tuple <Int_t, Double_t, Double_t> > domain2_XY;
+      std::vector<Int_t> domain1_layer;
+      std::vector<Int_t> domain2_layer;
 
       Double_t slope_even = cY_even/cX_even;
       Double_t slope_odd  = cY_odd/cX_odd;
@@ -657,11 +608,9 @@ void HoughTransform_EvenOddSeparate(){
 	  Double_t RHS= slope_even*(RecoWireEnd0X[i_reco]-abs_cX_even)+abs_cY_even;
 	  if (LHS>RHS){
 	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
-	    domain1_XY.push_back(std::make_tuple(RecoWireId[i_reco],RecoWireEnd0X[i_reco],RecoWireEnd0Y[i_reco]));
 	  }
 	  else if (LHS<RHS){
 	    domain2_layer.push_back(RecoWireLayerId[i_reco]);
-	    domain2_XY.push_back(std::make_tuple(RecoWireId[i_reco],RecoWireEnd0X[i_reco],RecoWireEnd0Y[i_reco]));
 	  }
 	}
 
@@ -670,11 +619,9 @@ void HoughTransform_EvenOddSeparate(){
 	  Double_t RHS= slope_odd*(RecoWireEnd0X[i_reco]-abs_cX_odd)+abs_cY_odd;
 	  if (LHS>RHS){
 	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
-	    domain1_XY.push_back(std::make_tuple(RecoWireId[i_reco],RecoWireEnd0X[i_reco],RecoWireEnd0Y[i_reco]));
 	  }
 	  else if (LHS<RHS){
 	    domain2_layer.push_back(RecoWireLayerId[i_reco]);
-	    domain2_XY.push_back(std::make_tuple(RecoWireId[i_reco],RecoWireEnd0X[i_reco],RecoWireEnd0Y[i_reco]));
 	  }
 	}
       }
@@ -685,79 +632,26 @@ void HoughTransform_EvenOddSeparate(){
 	}
       }
 
+
       /*--------------------------------
 	|                              |
 	|    Charge Identification     | // Need to Correct
 	|                              |
 	-------------------------------*/
 
-      // domain 1
+      /*
+      Double_t crossZ=abs_cX_odd*abs_cY_even-abs_cY_odd*abs_cX_even;
+      Int_t charge;
 
-      Int_t NumOf1stLayerHitInDomain1=0;
-      Int_t NumOf2ndLayerHitInDomain1=0;
-      Double_t x1_domain1=0;
-      Double_t y1_domain1=0;
-      Double_t x2_domain1=0;
-      Double_t y2_domain1=0;
-      
-      for (Int_t i_dom=0; i_dom<domain1_layer.size(); i_dom++){
-	if (domain1_layer[i_dom]==0){
-	  x1_domain1+=std::get<1>(domain1_XY[i_dom]);
-	  y1_domain1+=std::get<2>(domain1_XY[i_dom]);
-	  NumOf1stLayerHitInDomain1++;
-	}
-	else if (domain1_layer[i_dom]==1){
-	  x2_domain1+=std::get<1>(domain1_XY[i_dom]);
-	  y2_domain1+=std::get<2>(domain1_XY[i_dom]);
-	  NumOf2ndLayerHitInDomain1++;		  
-	}
+      if (crossZ>=0){ // e-
+	RecoPID=11; 
+	charge=-1;
       } 
-
-      x1_domain1=x1_domain1/NumOf1stLayerHitInDomain1;
-      y1_domain1=y1_domain1/NumOf1stLayerHitInDomain1;
-      x2_domain1=x2_domain1/NumOf2ndLayerHitInDomain1;
-      y2_domain1=y2_domain1/NumOf2ndLayerHitInDomain1;
-
-      // domain 2
-
-      Int_t NumOf1stLayerHitInDomain2=0;
-      Int_t NumOf2ndLayerHitInDomain2=0;
-      Double_t x1_domain2=0;
-      Double_t y1_domain2=0;
-      Double_t x2_domain2=0;
-      Double_t y2_domain2=0;
-      
-      for (Int_t i_dom=0; i_dom<domain2_layer.size(); i_dom++){
-	if (domain2_layer[i_dom]==0){
-	  x1_domain2+=std::get<1>(domain2_XY[i_dom]);
-	  y1_domain2+=std::get<2>(domain2_XY[i_dom]);
-	  NumOf1stLayerHitInDomain2++;
-	}
-	else if (domain2_layer[i_dom]==1){
-	  x2_domain2+=std::get<1>(domain2_XY[i_dom]);
-	  y2_domain2+=std::get<2>(domain2_XY[i_dom]);
-	  NumOf2ndLayerHitInDomain2++;		  
-	}
+      else if (crossZ<0){ // e+
+	RecoPID=-11; 
+	charge=1;
       } 
-
-      x1_domain2=x1_domain2/NumOf1stLayerHitInDomain2;
-      y1_domain2=y1_domain2/NumOf1stLayerHitInDomain2;
-      x2_domain2=x2_domain2/NumOf2ndLayerHitInDomain2;
-      y2_domain2=y2_domain2/NumOf2ndLayerHitInDomain2;
-
-      Double_t z_domain1;
-      Double_t z_domain2;
-      Double_t z1stEnd0=-73.6843;
-      Double_t z2ndEnd0=-73.9348;
-
-      std::cout << x1_domain1 << "   " << y1_domain1 << "   " << x2_domain1 << "   " << y2_domain1 << std::endl;
-      std::cout << x1_domain2 << "   " << y1_domain2 << "   " << x2_domain2 << "   " << y2_domain2 << std::endl;
-
-      /*------------------------------------
-	|                                  |
-	|    Other Auxiliary Variables     | 
-	|                                  |
-	-----------------------------------*/
+      */
 
       drEvenToOdd = sqrt(pow(abs_cX_even-abs_cX_odd,2)+pow(abs_cY_even-abs_cY_odd,2));
       TruthZ1=CDCHitZ[0];
@@ -773,7 +667,7 @@ void HoughTransform_EvenOddSeparate(){
 	|   Wire Hit Drawing with Hough Circle    |
 	|                                         |
 	------------------------------------------*/
-      
+      /*      
       c_hits->cd();
       c_hits->DrawFrame(-90,-90,90,90);
       
@@ -815,6 +709,18 @@ void HoughTransform_EvenOddSeparate(){
       circle_odd->SetLineColor(2);      
       circle_odd->SetLineWidth(1);
       circle_odd->Draw();
+
+      center_even->SetFillColor(0);
+      center_even->SetFillStyle(4000);
+      center_even->SetLineColor(4);
+      center_even->SetLineWidth(1);
+      center_even->Draw();
+      
+      center_odd->SetFillColor(0);
+      center_odd->SetFillStyle(4000);
+      center_odd->SetLineColor(2);      
+      center_odd->SetLineWidth(1);
+      center_odd->Draw();
       
       // Hits
       
@@ -833,7 +739,7 @@ void HoughTransform_EvenOddSeparate(){
       grOddhits->Draw("P");
       
       // Recognized Hits
-      
+
       TGraph *grRecoEvenhits = new TGraph(nRecoHit_even, RecoWireEnd0X_even, RecoWireEnd0Y_even);
       grRecoEvenhits->SetTitle("RecoEvenhits");  
       grRecoEvenhits->SetMarkerStyle(20);
@@ -847,10 +753,9 @@ void HoughTransform_EvenOddSeparate(){
       grRecoOddhits->SetMarkerSize(1);
       grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
       grRecoOddhits->Draw("P");      
-      
+
       // Center crossing line
-      
-      /*
+
       Int_t nPoints = 8;
       Double_t xLine_even[nPoints];
       Double_t yLine_even[nPoints];
@@ -865,8 +770,7 @@ void HoughTransform_EvenOddSeparate(){
 	xLine_odd[i_line] = i_line*10;
 	yLine_odd[i_line] = slope_odd*(xLine_odd[i_line]-abs_cX_odd)+abs_cY_odd;
       }
-      
-      
+
       TGraph *crossingLine_even = new TGraph(nPoints, xLine_even, yLine_even);
       crossingLine_even->SetLineColor(4);
       crossingLine_even->Draw("L");
@@ -875,87 +779,10 @@ void HoughTransform_EvenOddSeparate(){
       crossingLine_odd->SetLineColor(2);
       crossingLine_odd->Draw("L");
       */
-
-
-       /*-----------------------------------
-	|                                 |
-	|   Conformal Transformed Hits    |
-	|                                 |
-	----------------------------------*/
-      /*
-      c_useful->cd(1);
-
-      TGraph *conf_odd = new TGraph(nConfOdd, ConfX_odd, ConfY_odd);
-      conf_odd->SetMarkerStyle(20);
-      conf_odd->SetMarkerColor(2);
-      conf_odd->Draw("AP");
-
-      TGraph *conf_even = new TGraph(nConfEven, ConfX_even, ConfY_even);
-      conf_even->GetYaxis()->SetRangeUser(-0.02,0.02);
-      conf_even->GetXaxis()->SetRangeUser(-0.02,0.02);
-      conf_even->SetMarkerStyle(20);
-      conf_even->SetMarkerColor(4);
-      conf_even->Draw("P");
-      */
-
-      /*----------------------------------------
-	|                                      |
-	|   Hough Transform  && Voting Plot    |
-	|                                      |
-	---------------------------------------*/
-
-      /*
-      TH2F *vote_plot_even = new TH2F("vote_plot_even", "vote_plot_even", nBins, 0, nBins, nBins, 0, nBins);
-      TH2F *vote_plot_odd = new TH2F("vote_plot_odd", "vote_plot_odd", nBins, 0, nBins, nBins, 0, nBins);
-      Bool_t if_already_vote[nBins][nBins][2];
-            
-      is_even=1;
-      for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
-	memset(if_already_vote,0,sizeof(if_already_vote));
-	for (Int_t i_Pt=0 ; i_Pt<nPt; i_Pt++){
-	  
-	  Double_t deg = i_Pt/nPt*180.0;
-	  Double_t rho =HoughTrans(ConfX[i_hit],ConfY[i_hit],deg);	  
-	  Int_t tmp_deg_index = (deg)*nBins/180;
-	  Int_t tmp_rho_index = (rho+rhomax)*nBins/(rhomax-rhomin);
-	  
-	  if (is_even==WireLayerId[i_hit]%2 && if_already_vote[tmp_deg_index][tmp_rho_index][0]==0){
-	    if_already_vote[tmp_deg_index][tmp_rho_index][0]=1;
-	    vote_plot_even->Fill(tmp_deg_index,tmp_rho_index);
-	  }
-	}
-      }
-      is_even=0;
-      for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
-	memset(if_already_vote,0,sizeof(if_already_vote));
-	for (Int_t i_Pt=0 ; i_Pt<nPt; i_Pt++){
-	  
-	  Double_t deg = i_Pt/nPt*180.0;
-	  Double_t rho =HoughTrans(ConfX[i_hit],ConfY[i_hit],deg);	  
-	  Int_t tmp_deg_index = (deg)*nBins/180;
-	  Int_t tmp_rho_index = (rho+rhomax)*nBins/(rhomax-rhomin);
-	  
-	  if (is_even==WireLayerId[i_hit]%2 && if_already_vote[tmp_deg_index][tmp_rho_index][0]==0){
-	    if_already_vote[tmp_deg_index][tmp_rho_index][0]=1;
-	    vote_plot_odd->Fill(tmp_deg_index,tmp_rho_index);
-	  }
-	}
-      }
-
-      c_useful->cd(3);    
-      vote_plot_even->Draw("colz");
-      c_useful->cd(4);
-      vote_plot_odd->Draw("colz");
-      c_useful->Print("figures.pdf");
-      */
-      ///////////////////////////////////////////////////////////////////////////////////////////
-
-
       t_out->Fill();
+
   }
-
-
-  
+  /*
   c_div->cd(1);
   diff_hist->SetLineColor(4);
   diff_hist->SetFillColor(4);
@@ -989,6 +816,8 @@ void HoughTransform_EvenOddSeparate(){
   c_div->cd(6);
   ref_odd_dist->Draw("colz");
   
+  */
+
   std::cout << "Finish!" << std::endl;
   
   f_out->cd();
@@ -1057,12 +886,58 @@ Bool_t ifInsideVec(Int_t element, std::vector<Int_t> vec){
   }
   return 0;
 }
-
+/*
 Double_t twoPtDistance(Double_t x1, Double_t y1, Double_t x2, Double_t y2){
   return sqrt(pow(x2-x1,2)+pow(y2-y1,2));
 }
 
+Bool_t ifInsideClusterSet(std::tuple< Double_t, Double_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet){
+  Bool_t isInside=0;
+  if (ClusterSet.empty()==1){return isInside;}
 
+  for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
+    for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
+      if (tmpXYL == ClusterSet[i_clu][i_ele]){
+	isInside=1;
+	break;
+      }
+    }
+  } 
+
+  return isInside;  
+}
+
+void FindMatchedCluster(std::tuple< Double_t, Double_t, Int_t> tmpXYL, std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet){
+
+  if (!ClusterSet.empty()){
+      for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
+	for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
+	  if (std::get<2>(tmpXYL)==std::get<2>(ClusterSet[i_clu][i_ele])){
+	    if (twoPtDistance(std::get<0>(tmpXYL),std::get<1>(tmpXYL),std::get<0>(ClusterSet[i_clu][i_ele]),std::get<1>(ClusterSet[i_clu][i_ele]))<2){
+	      ClusterSet[i_clu].push_back(tmpXYL);	     	      
+	    }
+	  }
+	}
+      }   
+    }
+}
+
+Bool_t ifLayerIsEmptyInCluster(Int_t layer,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet){
+  Bool_t isEmpty=1;
+  if (ClusterSet.empty()==1) { return isEmpty;}
+  else if (!ClusterSet.empty()){
+    for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
+      for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
+	if (layer==std::get<2>(ClusterSet[i_clu][i_ele])){
+	  isEmpty=0;
+	  return isEmpty;
+	}
+      }   
+    }
+  }
+  return isEmpty;
+}
+*/
 void MakeCluster(std::vector<Int_t> &WireIds, std::vector<std::vector< Int_t> > &ClusterSet, Int_t WireNumberInLayer)
 {
   if (!WireIds.empty()){

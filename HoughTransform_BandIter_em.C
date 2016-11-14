@@ -22,16 +22,26 @@
 #include <cmath>
 #include <tuple>
 
-Float_t ConfTransX(Float_t x, Float_t y);
-Float_t ConfTransY(Float_t x, Float_t y);
-Float_t HoughTrans(Float_t x, Float_t y, Float_t theta);
-Bool_t ifInsideDisk(Float_t x, Float_t y);
-std::vector<std::pair<Float_t,Float_t> > makeOrigins(Float_t rad_uncertainty, std::pair<Float_t,Float_t> ref);
+Double_t ConfTransX(Double_t x, Double_t y);
+Double_t ConfTransY(Double_t x, Double_t y);
+Double_t HoughTrans(Double_t x, Double_t y, Double_t theta);
+Bool_t ifInsideDisk(Double_t x, Double_t y);
+std::vector<std::pair<Double_t,Double_t> > makeOrigins(Double_t rad_uncertainty, std::pair<Double_t,Double_t> ref);
 Int_t findMaxpoint(std::vector<Int_t> vec);
-Bool_t ifInsideBand(Float_t x, Float_t y, Float_t cX, Float_t cY, Float_t outerR, Float_t interR);
-Bool_t ifInsideVec(Int_t layer, std::vector<Int_t> vec);
+Bool_t ifInsideBand(Double_t x, Double_t y, Double_t cX, Double_t cY, Double_t outerR, Double_t interR);
+Bool_t ifInsideVec(Int_t element, std::vector<Int_t> vec);
+/*
+Double_t twoPtDistance(Double_t x1, Double_t y1, Double_t x2, Double_t y2);
+Bool_t ifInsideClusterSet(std::tuple< Double_t, Double_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet);
+void FindMatchedCluster(std::tuple< Double_t, Double_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet);
+Bool_t ifLayerIsEmptyInCluster(Int_t layer,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet);
+*/
+bool sortFunction (int i,int j) { return (i<j); }
+void MakeCluster(std::vector<Int_t> &WireIds, std::vector<std::vector< Int_t> > &ClusterSet, Int_t WireNumberInLayer);
+bool ifInsideArray(Int_t wireid, Int_t *reco_ids, Int_t arr_size);
 
-void HoughTransform_BandIter(int bw){
+
+void HoughTransform_BandIter_em(int bw){
 
   std::string dir = "../";
   std::string fileName = "trig_em104_onlyPrimary.root";
@@ -43,38 +53,41 @@ void HoughTransform_BandIter(int bw){
   TTree *t_out = t->CloneTree(0);
 
   Int_t nCDCHit;
-  Float_t CDCHitX[100000];
-  Float_t CDCHitY[100000];
-  Float_t CDCHitZ[100000];
-  Float_t CDCHitT[100000];
-  Float_t CDCEDep[100000];
+  Double_t CDCHitX[30000];
+  Double_t CDCHitY[30000];
+  Double_t CDCHitZ[30000];
+  Double_t CDCHitT[30000];
+  Double_t CDCEDep[30000];
   Int_t nCALCDCHit;
-  Float_t CDCDriftDist[100000];
-  Int_t CDCCharge[100000];
-  Float_t WireEnd0X[100000];
-  Float_t WireEnd0Y[100000];  
-  Float_t WireEnd0Z[100000];
-  Float_t WireEnd1X[100000];
-  Float_t WireEnd1Y[100000];  
-  Float_t WireEnd1Z[100000];
-
-  Int_t WireLayerId[100000];
+  Double_t CDCDriftDist[30000];
+  Int_t CDCCharge[30000];
+  Double_t WireEnd0X[30000];
+  Double_t WireEnd0Y[30000];  
+  Double_t WireEnd0Z[30000];
+  Double_t WireEnd1X[30000];
+  Double_t WireEnd1Y[30000];  
+  Double_t WireEnd1Z[30000];
+  Int_t WireLayerId[30000];
   Int_t WireMaxLayerId;
-  Float_t genTrE;
-  Float_t genTrPx;
-  Float_t genTrPy;
-  Float_t genTrPz;
-  Float_t genTrT;
+  Int_t WireId[30000];
+
+
+  Double_t genTrE;
+  Double_t genTrPx;
+  Double_t genTrPy;
+  Double_t genTrPz;
+  Double_t genTrT;
   Int_t nTrigSTL;
   Int_t nTrigCRK;
   Int_t TrigSTL[1000];
   Int_t TrigCRK[1000];
-  Float_t TrigSTLTime[1000];
-  Float_t TrigCRKTime[1000];
+  Double_t TrigSTLTime[1000];
+  Double_t TrigCRKTime[1000];
   Int_t MaxCDCLayerId;
   Int_t nCDCHitPrimary;
   Bool_t ifSingleTurn;
   Bool_t ifMultiTurn;
+
 
   t->SetBranchAddress("nCDCHit", &nCDCHit);
   t->SetBranchAddress("CDCHitX", CDCHitX);  
@@ -92,6 +105,7 @@ void HoughTransform_BandIter(int bw){
   t->SetBranchAddress("WireEnd1Z", WireEnd1Z);
   t->SetBranchAddress("WireLayerId", WireLayerId);
   t->SetBranchAddress("WireMaxLayerId", &WireMaxLayerId);
+  t->SetBranchAddress("WireId", WireId);
 
   t->SetBranchAddress("genTrE", &genTrE);
   t->SetBranchAddress("genTrPx", &genTrPx);
@@ -111,45 +125,44 @@ void HoughTransform_BandIter(int bw){
   t->SetBranchAddress("nCDCHitPrimary", &nCDCHitPrimary);
   
   Int_t nRecoHit;
-  Float_t RecoWireEnd0X[50000];
-  Float_t RecoWireEnd0Y[50000];
-  Float_t RecoWireEnd1X[50000];
-  Float_t RecoWireEnd1Y[50000];
-  Float_t RecoCDCDriftDist[50000];
-  Int_t RecoWireLayerId[50000];
+  Double_t RecoWireEnd0X[30000];
+  Double_t RecoWireEnd0Y[30000];
+  Double_t RecoWireEnd1X[30000];
+  Double_t RecoWireEnd1Y[30000];
+  Double_t RecoCDCDriftDist[30000];
+  Int_t RecoWireLayerId[30000];
+  Int_t RecoWireId[30000];
   Int_t RecoPID;
   Int_t RecoMaxWireLayerId;
   Bool_t Reco_ifCL3;
   Bool_t Reco_ifSingleTurn;
   Bool_t Reco_ifMultiTurn;
-  Float_t fittedR_even;
-  Float_t fittedR_odd;
-  Float_t drEvenToOdd;
-  Float_t TruthZ1;
+  Double_t fittedR_even;
+  Double_t fittedR_odd;
+  Double_t drEvenToOdd;
+  Double_t TruthZ1;
 
   t_out->Branch("nRecoHit", &nRecoHit, "nRecoHit/I");
-  t_out->Branch("RecoWireEnd0X", RecoWireEnd0X, "RecoWireEnd0X[nRecoHit]/F");
-  t_out->Branch("RecoWireEnd0Y", RecoWireEnd0Y, "RecoWireEnd0Y[nRecoHit]/F");
-  t_out->Branch("RecoWireEnd1X", RecoWireEnd1X, "RecoWireEnd1X[nRecoHit]/F");
-  t_out->Branch("RecoWireEnd1Y", RecoWireEnd1Y, "RecoWireEnd1Y[nRecoHit]/F");
-  t_out->Branch("RecoCDCDriftDist", RecoCDCDriftDist, "RecoCDCDriftDist[nRecoHit]/F");
+  t_out->Branch("RecoWireEnd0X", RecoWireEnd0X, "RecoWireEnd0X[nRecoHit]/D");
+  t_out->Branch("RecoWireEnd0Y", RecoWireEnd0Y, "RecoWireEnd0Y[nRecoHit]/D");
+  t_out->Branch("RecoWireEnd1X", RecoWireEnd1X, "RecoWireEnd1X[nRecoHit]/D");
+  t_out->Branch("RecoWireEnd1Y", RecoWireEnd1Y, "RecoWireEnd1Y[nRecoHit]/D");
+  t_out->Branch("RecoCDCDriftDist", RecoCDCDriftDist, "RecoCDCDriftDist[nRecoHit]/D");
   t_out->Branch("RecoWireLayerId", RecoWireLayerId, "RecoWireLayerId[nRecoHit]/I");
+  t_out->Branch("RecoWireId", RecoWireId, "RecoWireId[nRecoHit]/I");
   t_out->Branch("RecoPID", &RecoPID, "RecoPID/I");
-  t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/F");
-  t_out->Branch("drEvenToOdd", &drEvenToOdd, "drEvenToOdd/F");
-  t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/F");
+  t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/D");
+  t_out->Branch("drEvenToOdd", &drEvenToOdd, "drEvenToOdd/D");
+  t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/D");
   t_out->Branch("RecoMaxWireLayerId", &RecoMaxWireLayerId, "RecoMaxWireLayerId/I");
   t_out->Branch("Reco_ifCL3", &Reco_ifCL3, "Reco_ifCL3/O");
   t_out->Branch("Reco_ifSingleTurn", &Reco_ifSingleTurn, "Reco_ifSingleTurn/O");
   t_out->Branch("Reco_ifMultiTurn", &Reco_ifMultiTurn, "Reco_ifMultiTurn/O");  
-  t_out->Branch("fittedR_even", &fittedR_even, "fittedR_even/F");  
-  t_out->Branch("fittedR_odd", &fittedR_odd, "fittedR_odd/F");
+  t_out->Branch("fittedR_even", &fittedR_even, "fittedR_even/D");  
+  t_out->Branch("fittedR_odd", &fittedR_odd, "fittedR_odd/D");
 
-  /*
   TCanvas *c_div = new TCanvas ("c_div", "c divided", 600,900);
   c_div->Divide(2,4);
-  TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);
-  */
 
   //TH1F *maxvote_even_hist = new TH1F("maxvote_even_hist","max_even_vote_hist", 100, 0, 100);
   //TH1F *maxvote_odd_hist = new TH1F("maxvote_odd_hist","max_odd_vote_hist", 100, 0, 100);
@@ -161,12 +174,16 @@ void HoughTransform_BandIter(int bw){
   TH2F *ref_even_dist = new TH2F("ref_even_dist", "ref_even_dist", 30, -10, 10, 30, -10, 10);
   TH2F *ref_odd_dist = new TH2F("ref_odd_dist", "ref_odd_dist", 30, -10, 10, 30, -10, 10);
  
-  
+  TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);
+
+  Int_t NumOfLayers=18;
+  Int_t NumOfWiresPerLayer[18]={198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300};
+
   Int_t niter=3;
   Int_t nBins=100;
-  Float_t nPt=1000.0;
-  Float_t rhomax=0.02;
-  Float_t rhomin=-0.02;
+  Double_t nPt=1000.0;
+  Double_t rhomax=0.02;
+  Double_t rhomin=-0.02;
 
   //////// Bandwidth Variables ////////
 
@@ -175,25 +192,24 @@ void HoughTransform_BandIter(int bw){
   Int_t RecoHits_Single=0;
   Int_t RecoHits_Multi=0;
   
-  Int_t bandwidth=bw;
+  Double_t bandwidth=bw;
   Int_t nIter_band = 10;
-  Float_t RecoRate_Single[10];
-  Float_t RecoRate_Multi[10];
+  Double_t RecoRate_Single[10];
+  Double_t RecoRate_Multi[10];
 
   /////////////////////////////////////
 
   for (Int_t i_evt=0; i_evt < t->GetEntries(); i_evt++){
     t->GetEntry(i_evt);    
 
+    std::cout << "-------------------------" << std::endl;
+    std::cout << i_evt <<"-th Event"<< std::endl;           
+    std::cout << "MC Hit NDF: " << nCALCDCHit << std::endl;
+
     ///////////////////
     // Pre Track Cut //
     ///////////////////
     
-    std::cout << i_evt <<"-th Event"<< std::endl;           
-    std::cout << "  MC Hit NDF: " << nCALCDCHit << std::endl;
-
-
-
     Bool_t ifThereisOddhit=0;
     Bool_t ifThereisEvenhit=0;
     if (nCALCDCHit<2) continue; // Require At least more than 2 hits
@@ -207,7 +223,6 @@ void HoughTransform_BandIter(int bw){
     ///////////////////
     // Nullification //
     ///////////////////
-
 
     nRecoHit=0;
     memset (RecoWireEnd0X, 0, sizeof(RecoWireEnd0X)); 
@@ -224,17 +239,17 @@ void HoughTransform_BandIter(int bw){
     Reco_ifMultiTurn=0;
 
     
-    std::vector<std::pair<Float_t,Float_t> > WireEnd0;
+    std::vector<std::pair<Double_t,Double_t> > WireEnd0;
     std::vector<Int_t> LayerId;
     Int_t nEvenhits=0;
     Int_t nOddhits=0;    
-    Float_t WireEnd0X_even[10000];
-    Float_t WireEnd0Y_even[10000];  
-    Float_t WireEnd0X_odd[10000];
-    Float_t WireEnd0Y_odd[10000];
+    Double_t WireEnd0X_even[10000];
+    Double_t WireEnd0Y_even[10000];  
+    Double_t WireEnd0X_odd[10000];
+    Double_t WireEnd0Y_odd[10000];
 
-    Float_t ConfX[100000];
-    Float_t ConfY[100000];
+    Double_t ConfX[100000];
+    Double_t ConfY[100000];
 
     Int_t deg_index;    
     Int_t rho_index;
@@ -242,16 +257,22 @@ void HoughTransform_BandIter(int bw){
 
     Int_t deg_even_index; 
     Int_t rho_even_index;
-    std::pair <Float_t,Float_t> ref_even;
+    std::pair <Double_t,Double_t> ref_even;
     Int_t deg_odd_index;
     Int_t rho_odd_index;
-    std::pair <Float_t,Float_t> ref_odd;
+    std::pair <Double_t,Double_t> ref_odd;
 
-    /////////////////////////////////////////////////////////////////////
-    // Remove MultiPosition Hit & Sort Even, Odd Hit for Visulaization //
-    /////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////
+    // Sort Even, Odd Hit for Visulaization  &&  Clustering //
+    //////////////////////////////////////////////////////////
+
+    std::vector<Int_t> WireIdsPerLayer[18];
+    std::vector< std::vector <Int_t> > tmpClusterSet;
+    std::vector< std::vector <Int_t> > ClusterSet;
 
     for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
+
+      // Sort Even, Odd Hit
       if ((WireLayerId[i_hit]+1)%2==0){
 	WireEnd0X_even[nEvenhits]=WireEnd0X[i_hit];
 	WireEnd0Y_even[nEvenhits]=WireEnd0Y[i_hit];
@@ -262,29 +283,53 @@ void HoughTransform_BandIter(int bw){
 	WireEnd0Y_odd[nOddhits]=WireEnd0Y[i_hit];
 	nOddhits++;
       }
+      
+      // Sort Layer of Hits
+      Int_t layerid=WireLayerId[i_hit];
+      if(std::find(WireIdsPerLayer[layerid].begin(), WireIdsPerLayer[layerid].end(), WireId[i_hit]) != WireIdsPerLayer[layerid].end()){
+	continue;
+      }
+      WireIdsPerLayer[layerid].push_back(WireId[i_hit]);    	  
+      
+    }
+    
+    // Sort one more time from smallest to biggest 
+    // + Make Clusters and push into ClusterSet
+    
+    for (Int_t i_layer=0; i_layer<NumOfLayers; i_layer++){
+      std::sort (WireIdsPerLayer[i_layer].begin(), WireIdsPerLayer[i_layer].end(), sortFunction);
+      for (Int_t i_ele=0; i_ele<WireIdsPerLayer[i_layer].size(); i_ele++){
+      }
+      MakeCluster(WireIdsPerLayer[i_layer], tmpClusterSet, NumOfWiresPerLayer[i_layer]);
     }
 
+    // Reduce size 1 Cluster
+    for (Int_t i_clu=0; i_clu<tmpClusterSet.size(); i_clu++){
+      if (tmpClusterSet[i_clu].size()>1){
+	ClusterSet.push_back(tmpClusterSet[i_clu]);
+      }
+    }
+
+   
     ////////////////////////
     //    Main Analysis   //
     ////////////////////////
        
-    //if (nCALCDCHit>=30 && WireMaxLayerId>=4 && (ifMultiTurn==1 || ifSingleTurn==1)){ Track Cut From G4Hits
-
       for (Int_t is_even=0; is_even<2; is_even++){
-
-	Float_t rad_uncertainty=5;
-	std::pair <Float_t,Float_t> ref = std::make_pair(0,0);
+	  
+	Double_t rad_uncertainty=5;
+	std::pair <Double_t,Double_t> ref = std::make_pair(0,0);
 
 	for (Int_t it2=0; it2<niter; it2++){
 	  
-	  std::vector<std::pair<Float_t,Float_t> > origins = makeOrigins(rad_uncertainty,ref);     
+	  std::vector<std::pair<Double_t,Double_t> > origins = makeOrigins(rad_uncertainty,ref);     
 	  std::vector<Int_t> vote_max;
 	  std::vector<std::pair<Int_t,Int_t> > index_vec; 
 	  
 	  for (Int_t it=0; it<origins.size(); it++){
 	    
-	    Float_t oriX=origins[it].first; 
-	    Float_t oriY=origins[it].second;
+	    Double_t oriX=origins[it].first; 
+	    Double_t oriY=origins[it].second;
 	    
 	    if  (ifInsideDisk(oriX,oriY)==0){
 	      vote_max.push_back(0);
@@ -318,8 +363,8 @@ void HoughTransform_BandIter(int bw){
 		memset(if_already_vote,0,sizeof(if_already_vote));
 		for (Int_t i_Pt=0 ; i_Pt<nPt; i_Pt++){
 		  
-		  Float_t deg = i_Pt/nPt*180.0;
-		  Float_t rho =HoughTrans(ConfX[i_hit],ConfY[i_hit],deg);	  
+		  Double_t deg = i_Pt/nPt*180.0;
+		  Double_t rho =HoughTrans(ConfX[i_hit],ConfY[i_hit],deg);	  
 		  Int_t tmp_deg_index = (deg)*nBins/180;
 		  Int_t tmp_rho_index = (rho+rhomax)*nBins/(rhomax-rhomin);
 	      
@@ -368,26 +413,26 @@ void HoughTransform_BandIter(int bw){
 	}
       }
       
-      Float_t deg_even_eval = 180.0/nBins*(2*deg_even_index+1)/2;
-      Float_t rho_even_eval = rhomin+(rhomax-rhomin)/nBins*(2*rho_even_index-1)/2;   
-      Float_t cX_even = TMath::Cos(deg_even_eval*TMath::Pi()/180.0)/(2*rho_even_eval);
-      Float_t cY_even = TMath::Sin(deg_even_eval*TMath::Pi()/180.0)/(2*rho_even_eval);
+      Double_t deg_even_eval = 180.0/nBins*(2*deg_even_index+1)/2;
+      Double_t rho_even_eval = rhomin+(rhomax-rhomin)/nBins*(2*rho_even_index-1)/2;   
+      Double_t cX_even = TMath::Cos(deg_even_eval*TMath::Pi()/180.0)/(2*rho_even_eval);
+      Double_t cY_even = TMath::Sin(deg_even_eval*TMath::Pi()/180.0)/(2*rho_even_eval);
       
-      Float_t deg_odd_eval = 180.0/nBins*(2*deg_odd_index+1)/2;
-      Float_t rho_odd_eval = rhomin+(rhomax-rhomin)/nBins*(2*rho_odd_index-1)/2;
-      Float_t cX_odd = TMath::Cos(deg_odd_eval*TMath::Pi()/180.0)/(2*rho_odd_eval);
-      Float_t cY_odd = TMath::Sin(deg_odd_eval*TMath::Pi()/180.0)/(2*rho_odd_eval);
+      Double_t deg_odd_eval = 180.0/nBins*(2*deg_odd_index+1)/2;
+      Double_t rho_odd_eval = rhomin+(rhomax-rhomin)/nBins*(2*rho_odd_index-1)/2;
+      Double_t cX_odd = TMath::Cos(deg_odd_eval*TMath::Pi()/180.0)/(2*rho_odd_eval);
+      Double_t cY_odd = TMath::Sin(deg_odd_eval*TMath::Pi()/180.0)/(2*rho_odd_eval);
 
-      Float_t rad_even = sqrt(pow(cX_even,2)+pow(cY_even,2));
-      Float_t rad_odd = sqrt(pow(cX_odd,2)+pow(cY_odd,2));
+      Double_t rad_even = sqrt(pow(cX_even,2)+pow(cY_even,2));
+      Double_t rad_odd = sqrt(pow(cX_odd,2)+pow(cY_odd,2));
       rad_even_hist->Fill(rad_even);
       rad_odd_hist->Fill(rad_odd);
       fittedR_even=rad_even;
       fittedR_odd=rad_odd;
 
 
-      Float_t fitpT = (rad_even/0.3356+rad_odd/0.3356)/2;
-      Float_t truthpT = sqrt(pow(genTrPy,2)+pow(genTrPz,2));
+      Double_t fitpT = (rad_even/0.3356+rad_odd/0.3356)/2;
+      Double_t truthpT = sqrt(pow(genTrPy,2)+pow(genTrPz,2));
       fitpT_hist->Fill(fitpT);
       truthpT_hist->Fill(truthpT);
       diff_hist->Fill(fitpT-truthpT);
@@ -401,14 +446,14 @@ void HoughTransform_BandIter(int bw){
       
       Int_t nRecoHit_even=0;
       Int_t nRecoHit_odd=0;
-      Float_t RecoWireEnd0X_even[10000];
-      Float_t RecoWireEnd0Y_even[10000];
-      Float_t RecoWireEnd0X_odd[10000];
-      Float_t RecoWireEnd0Y_odd[10000];
-      Float_t outerR_even = rad_even + bandwidth/2.0;
-      Float_t interR_even = rad_even - bandwidth/2.0;
-      Float_t outerR_odd = rad_odd + bandwidth/2.0;
-      Float_t interR_odd = rad_odd - bandwidth/2.0;
+      Double_t RecoWireEnd0X_even[10000];
+      Double_t RecoWireEnd0Y_even[10000];
+      Double_t RecoWireEnd0X_odd[10000];
+      Double_t RecoWireEnd0Y_odd[10000];
+      Double_t outerR_even = rad_even + bandwidth/2.0;
+      Double_t interR_even = rad_even - bandwidth/2.0;
+      Double_t outerR_odd = rad_odd + bandwidth/2.0;
+      Double_t interR_odd = rad_odd - bandwidth/2.0;
       
       RecoMaxWireLayerId=0;
       
@@ -419,12 +464,13 @@ void HoughTransform_BandIter(int bw){
 	    RecoWireEnd0Y_even[nRecoHit_even]=WireEnd0Y[i_hit];
 	    nRecoHit_even++;	   
 
-	    RecoWireEnd0X[nRecoHit]=WireEnd0X[nRecoHit];
-	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[nRecoHit];
-	    RecoWireEnd1X[nRecoHit]=WireEnd1X[nRecoHit];
-	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[nRecoHit];
-	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[nRecoHit];
-	    RecoWireLayerId[nRecoHit]=WireLayerId[nRecoHit];
+	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
+	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
+	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
+	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
+	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
+	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
+	    RecoWireId[nRecoHit]=WireId[i_hit];
 
 	    if (RecoWireLayerId[nRecoHit]>RecoMaxWireLayerId){
 	      RecoMaxWireLayerId=RecoWireLayerId[nRecoHit];
@@ -438,12 +484,13 @@ void HoughTransform_BandIter(int bw){
 	    RecoWireEnd0Y_odd[nRecoHit_odd]=WireEnd0Y[i_hit];
 	    nRecoHit_odd++;
 
-	    RecoWireEnd0X[nRecoHit]=WireEnd0X[nRecoHit];
-	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[nRecoHit];
-	    RecoWireEnd1X[nRecoHit]=WireEnd1X[nRecoHit];
-	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[nRecoHit];
-	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[nRecoHit];
-	    RecoWireLayerId[nRecoHit]=WireLayerId[nRecoHit];
+	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
+	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
+	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
+	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
+	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
+	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
+	    RecoWireId[nRecoHit]=WireId[i_hit];
 
 	    if (RecoWireLayerId[nRecoHit]>RecoMaxWireLayerId){
 	      RecoMaxWireLayerId=RecoWireLayerId[nRecoHit];
@@ -453,7 +500,7 @@ void HoughTransform_BandIter(int bw){
 	}		
       }
 
-
+      /////////////////////////////////////////////////////
       if (ifSingleTurn==1){
 	TotalHits_Single+=nCALCDCHit;
 	RecoHits_Single+=(nRecoHit_even+nRecoHit_odd);
@@ -463,6 +510,80 @@ void HoughTransform_BandIter(int bw){
 	TotalHits_Multi+=nCALCDCHit;
 	RecoHits_Multi+=(nRecoHit_even+nRecoHit_odd);
       }
+      ////////////////////////////////////////////////////
+
+      /*-----------------------------------------------------------
+	|                                                         |
+	|           Count Non-Recognized Hits in Cluster          |
+	|                                                         |
+	----------------------------------------------------------*/
+
+      std::vector <Int_t> WireIdsToBeReco;
+
+      for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
+	Bool_t isItRecoCluster=0;
+
+	for(Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){	  
+	  if (ifInsideArray(ClusterSet[i_clu][i_ele], RecoWireId, nRecoHit)==1){
+	    isItRecoCluster=1;
+	    break;
+	  }
+	}
+	
+	if (isItRecoCluster==1){
+	  for(Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){	  
+	    if (ifInsideArray(ClusterSet[i_clu][i_ele], RecoWireId, nRecoHit)==0){
+	      WireIdsToBeReco.push_back(ClusterSet[i_clu][i_ele]);
+	    }
+	  }
+	}
+      }
+  
+      std::cout << "Num Of Ids to be Recognized: " << WireIdsToBeReco.size() << std::endl;
+
+      for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
+	if (ifInsideVec(WireId[i_hit],WireIdsToBeReco)==1){
+
+	  if ((WireLayerId[i_hit]+1)%2 == 0){ // even
+	    RecoWireEnd0X_even[nRecoHit_even]=WireEnd0X[i_hit];
+	    RecoWireEnd0Y_even[nRecoHit_even]=WireEnd0Y[i_hit];
+	    nRecoHit_even++;	   
+	    
+	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
+	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
+	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
+	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
+	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
+	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
+	    RecoWireId[nRecoHit]=WireId[i_hit];
+	    
+	    if (RecoWireLayerId[nRecoHit]>RecoMaxWireLayerId){
+	      RecoMaxWireLayerId=RecoWireLayerId[nRecoHit];
+	    }
+	    nRecoHit++;
+	    
+	  }
+	  else if ((WireLayerId[i_hit]+1)%2 == 1){ // odd
+	    RecoWireEnd0X_odd[nRecoHit_odd]=WireEnd0X[i_hit];
+	    RecoWireEnd0Y_odd[nRecoHit_odd]=WireEnd0Y[i_hit];
+	    nRecoHit_odd++;
+	    
+	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
+	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
+	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
+	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
+	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
+	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
+	    RecoWireId[nRecoHit]=WireId[i_hit];
+	    
+	    if (RecoWireLayerId[nRecoHit]>RecoMaxWireLayerId){
+	      RecoMaxWireLayerId=RecoWireLayerId[nRecoHit];
+	    }
+	    nRecoHit++;	    
+	  }			  
+	} 
+      }
+      
 
       /*--------------------
 	|                  |                                      
@@ -470,18 +591,21 @@ void HoughTransform_BandIter(int bw){
 	|                  |
 	-------------------*/
 
-      Float_t abs_cX_even=cX_even+ref_even.first;
-      Float_t abs_cY_even=cY_even+ref_even.second;
-      Float_t abs_cX_odd=cX_odd+ref_odd.first;
-      Float_t abs_cY_odd=cY_odd+ref_odd.second;      
+      Double_t abs_cX_even=cX_even+ref_even.first;
+      Double_t abs_cY_even=cY_even+ref_even.second;
+      Double_t abs_cX_odd=cX_odd+ref_odd.first;
+      Double_t abs_cY_odd=cY_odd+ref_odd.second;      
       std::vector<Int_t> domain1_layer;
       std::vector<Int_t> domain2_layer;
-      
+
+      Double_t slope_even = cY_even/cX_even;
+      Double_t slope_odd  = cY_odd/cX_odd;
+
       for (Int_t i_reco=0; i_reco<nRecoHit; i_reco++){
 	if ((RecoWireLayerId[i_reco]+1)%2 == 0){ //even
-	  Float_t slope = cY_even/cX_even;
-	  Float_t LHS= RecoWireEnd0Y[i_reco];
-	  Float_t RHS= slope*(RecoWireEnd0X[i_reco]-abs_cX_even)+abs_cY_even;
+
+	  Double_t LHS= RecoWireEnd0Y[i_reco];
+	  Double_t RHS= slope_even*(RecoWireEnd0X[i_reco]-abs_cX_even)+abs_cY_even;
 	  if (LHS>RHS){
 	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
 	  }
@@ -491,9 +615,8 @@ void HoughTransform_BandIter(int bw){
 	}
 
 	else if ((RecoWireLayerId[i_reco]+1)%2 == 1){ //odd
-	  Float_t slope = cY_odd/cX_odd;
-	  Float_t LHS= RecoWireEnd0Y[i_reco];
-	  Float_t RHS= slope*(RecoWireEnd0X[i_reco]-abs_cX_odd)+abs_cY_odd;
+	  Double_t LHS= RecoWireEnd0Y[i_reco];
+	  Double_t RHS= slope_odd*(RecoWireEnd0X[i_reco]-abs_cX_odd)+abs_cY_odd;
 	  if (LHS>RHS){
 	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
 	  }
@@ -508,10 +631,6 @@ void HoughTransform_BandIter(int bw){
 	  Reco_ifCL3=1;
 	}
       }
-      
-    
-      
-
 
 
       /*--------------------------------
@@ -521,7 +640,7 @@ void HoughTransform_BandIter(int bw){
 	-------------------------------*/
 
       /*
-      Float_t crossZ=abs_cX_odd*abs_cY_even-abs_cY_odd*abs_cX_even;
+      Double_t crossZ=abs_cX_odd*abs_cY_even-abs_cY_odd*abs_cX_even;
       Int_t charge;
 
       if (crossZ>=0){ // e-
@@ -554,7 +673,7 @@ void HoughTransform_BandIter(int bw){
       
       // Wire Layers
       
-      Float_t WireRad[18] = {53.00,54.60,56.20,57.80,59.40,61.00,62.60,64.20,65.80,67.40,69.00,70.60,72.20,73.80,75.40,77.00,78.60,80.20};
+      Double_t WireRad[18] = {53.00,54.60,56.20,57.80,59.40,61.00,62.60,64.20,65.80,67.40,69.00,70.60,72.20,73.80,75.40,77.00,78.60,80.20};
       
       for (Int_t i=0; i<18; i++){
 	TEllipse *WireCircle = new TEllipse(0,0,WireRad[i],WireRad[i]);
@@ -566,7 +685,7 @@ void HoughTransform_BandIter(int bw){
       
       // Stopping target
       
-      Float_t DiskRad=10.00;
+      Double_t DiskRad=10.00;
       TEllipse *Disk = new TEllipse(0,0,DiskRad,DiskRad);
       Disk->SetFillColor(40);
       Disk->SetLineColor(40);
@@ -634,11 +753,34 @@ void HoughTransform_BandIter(int bw){
       grRecoOddhits->SetMarkerSize(1);
       grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
       grRecoOddhits->Draw("P");      
-      */
 
+      // Center crossing line
+
+      Int_t nPoints = 8;
+      Double_t xLine_even[nPoints];
+      Double_t yLine_even[nPoints];
+      Double_t xLine_odd[nPoints];
+      Double_t yLine_odd[nPoints];
+
+      for (Int_t i_line=0; i_line<nPoints; i_line++) {	
+	xLine_even[i_line] = i_line*10;
+	yLine_even[i_line] = slope_even*(xLine_even[i_line]-abs_cX_even)+abs_cY_even;
+      }
+      for (Int_t i_line=0; i_line<nPoints; i_line++) {
+	xLine_odd[i_line] = i_line*10;
+	yLine_odd[i_line] = slope_odd*(xLine_odd[i_line]-abs_cX_odd)+abs_cY_odd;
+      }
+
+      TGraph *crossingLine_even = new TGraph(nPoints, xLine_even, yLine_even);
+      crossingLine_even->SetLineColor(4);
+      crossingLine_even->Draw("L");
+
+      TGraph *crossingLine_odd = new TGraph(nPoints, xLine_odd, yLine_odd);
+      crossingLine_odd->SetLineColor(2);
+      crossingLine_odd->Draw("L");
+      */
       t_out->Fill();
-      
-      //} ************ Pre-Track Cut Statement
+
   }
   /*
   c_div->cd(1);
@@ -673,13 +815,7 @@ void HoughTransform_BandIter(int bw){
   ref_even_dist->Draw("colz");
   c_div->cd(6);
   ref_odd_dist->Draw("colz");
-  */
-  /*
-  std::cout << RecoHits_Single << std::endl;
-  std::cout << TotalHits_Single << std::endl;
-  std::cout << RecoHits_Multi << std::endl;
-  std::cout << TotalHits_Multi << std::endl;
-  std::cout << Float_t(RecoHits_Single)/TotalHits_Single*100.0 << "   " << Float_t(RecoHits_Multi)/TotalHits_Multi*100.0 << std::endl; 
+  
   */
 
   std::cout << "Finish!" << std::endl;
@@ -692,25 +828,25 @@ void HoughTransform_BandIter(int bw){
 
 }
 
-Float_t ConfTransX(Float_t x, Float_t y){
+Double_t ConfTransX(Double_t x, Double_t y){
   return x/(pow(x,2)+pow(y,2));
 } 
 
-Float_t ConfTransY(Float_t x, Float_t y){
+Double_t ConfTransY(Double_t x, Double_t y){
   return y/(pow(x,2)+pow(y,2));
 } 
 
-Float_t HoughTrans(Float_t x, Float_t y, Float_t theta){
+Double_t HoughTrans(Double_t x, Double_t y, Double_t theta){
   return x*TMath::Cos(theta*TMath::Pi()/180)+y*TMath::Sin(theta*TMath::Pi()/180);
 }
 
-Bool_t ifInsideDisk(Float_t x, Float_t y){
+Bool_t ifInsideDisk(Double_t x, Double_t y){
   if (pow(x,2)+pow(y,2)<100){ return 1;}
   else {return 0;}
 };
 
-std::vector<std::pair<Float_t,Float_t> > makeOrigins(Float_t rad_uncertainty, std::pair<Float_t,Float_t> ref){
-  std::vector<std::pair<Float_t,Float_t> > origins;
+std::vector<std::pair<Double_t,Double_t> > makeOrigins(Double_t rad_uncertainty, std::pair<Double_t,Double_t> ref){
+  std::vector<std::pair<Double_t,Double_t> > origins;
   origins.push_back(std::make_pair(ref.first, ref.second));  
   origins.push_back(std::make_pair(ref.first+rad_uncertainty, ref.second+rad_uncertainty));
   origins.push_back(std::make_pair(ref.first-rad_uncertainty, ref.second+rad_uncertainty));
@@ -735,18 +871,119 @@ Int_t findMaxpoint(std::vector<Int_t> vec){
   return maxpoint;
 }
 
-Bool_t ifInsideBand(Float_t x, Float_t y, Float_t cX, Float_t cY, Float_t outerR, Float_t interR){
+Bool_t ifInsideBand(Double_t x, Double_t y, Double_t cX, Double_t cY, Double_t outerR, Double_t interR){
   if ((pow(x-cX,2)+pow(y-cY,2))<pow(outerR,2) && (pow(x-cX,2)+pow(y-cY,2))>pow(interR,2)){
     return 1;
   }
   return 0;
 }
 
-Bool_t ifInsideVec(Int_t layer, std::vector<Int_t> vec){
+Bool_t ifInsideVec(Int_t element, std::vector<Int_t> vec){
   for (Int_t i=0; i<vec.size(); i++){
-    if (vec[i]==layer){
+    if (vec[i]==element){
       return 1;
     }
+  }
+  return 0;
+}
+/*
+Double_t twoPtDistance(Double_t x1, Double_t y1, Double_t x2, Double_t y2){
+  return sqrt(pow(x2-x1,2)+pow(y2-y1,2));
+}
+
+Bool_t ifInsideClusterSet(std::tuple< Double_t, Double_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet){
+  Bool_t isInside=0;
+  if (ClusterSet.empty()==1){return isInside;}
+
+  for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
+    for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
+      if (tmpXYL == ClusterSet[i_clu][i_ele]){
+	isInside=1;
+	break;
+      }
+    }
+  } 
+
+  return isInside;  
+}
+
+void FindMatchedCluster(std::tuple< Double_t, Double_t, Int_t> tmpXYL, std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet){
+
+  if (!ClusterSet.empty()){
+      for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
+	for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
+	  if (std::get<2>(tmpXYL)==std::get<2>(ClusterSet[i_clu][i_ele])){
+	    if (twoPtDistance(std::get<0>(tmpXYL),std::get<1>(tmpXYL),std::get<0>(ClusterSet[i_clu][i_ele]),std::get<1>(ClusterSet[i_clu][i_ele]))<2){
+	      ClusterSet[i_clu].push_back(tmpXYL);	     	      
+	    }
+	  }
+	}
+      }   
+    }
+}
+
+Bool_t ifLayerIsEmptyInCluster(Int_t layer,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet){
+  Bool_t isEmpty=1;
+  if (ClusterSet.empty()==1) { return isEmpty;}
+  else if (!ClusterSet.empty()){
+    for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
+      for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
+	if (layer==std::get<2>(ClusterSet[i_clu][i_ele])){
+	  isEmpty=0;
+	  return isEmpty;
+	}
+      }   
+    }
+  }
+  return isEmpty;
+}
+*/
+void MakeCluster(std::vector<Int_t> &WireIds, std::vector<std::vector< Int_t> > &ClusterSet, Int_t WireNumberInLayer)
+{
+  if (!WireIds.empty()){
+    std::vector<Int_t> tmpCluster;
+    std::vector<Int_t> firstCluster;
+    tmpCluster.push_back(WireIds[0]);
+    firstCluster.push_back(WireIds[0]);
+
+    for(Int_t i_id = 1; i_id < WireIds.size(); ++i_id){
+      if(WireIds[i_id] == WireIds[i_id-1] + 1){
+	tmpCluster.push_back(WireIds[i_id]);
+	
+	if (i_id==WireIds.size()-1){ // Last element 
+	  // 1. Check if it satisfies periodic boundary condition with first id of layer
+	  if (WireIds[i_id]-WireIds[0]+1==WireNumberInLayer){
+	    firstCluster.insert(firstCluster.end(), tmpCluster.begin(),tmpCluster.end());	    
+	    ClusterSet.push_back(firstCluster);	
+	    //	    std::cout << "Found Periodic Boundary!" << std::endl;
+	  }
+	  // 2. Otherwise, just push it.
+	  else{
+	    ClusterSet.push_back(firstCluster);
+	    ClusterSet.push_back(tmpCluster);
+	  }
+  
+	}
+
+      }
+      else if (WireIds[i_id] != WireIds[i_id-1] + 1){
+	if (std::find(tmpCluster.begin(), tmpCluster.end(), WireIds[0]) != tmpCluster.end()){
+	  firstCluster=tmpCluster;
+	}
+	else {
+	  ClusterSet.push_back(tmpCluster);
+	}
+	tmpCluster.clear();
+	tmpCluster.push_back(WireIds[i_id]);
+      }
+    }
+
+  }
+}
+
+bool ifInsideArray(Int_t wireid, Int_t *reco_ids, Int_t arr_size){
+  for (Int_t i=0; i<arr_size; i++){
+    if (reco_ids[i]==wireid) return 1;
   }
   return 0;
 }
