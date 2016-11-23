@@ -32,6 +32,9 @@ void AnalyzeOutput(){
   Double_t bw[bw_fin-bw_ini+1];
   Double_t Acceptance_em[bw_fin-bw_ini+1];
   Double_t Acceptance_ep[bw_fin-bw_ini+1];
+  Double_t MisCIDRate_em[bw_fin-bw_ini+1];
+  Double_t MisCIDRate_ep[bw_fin-bw_ini+1];
+
   Double_t RecoRate_em[bw_fin-bw_ini+1];
   Double_t RecoRate_ep[bw_fin-bw_ini+1];
 
@@ -40,7 +43,7 @@ void AnalyzeOutput(){
   memset (RecoRate_em, 0, sizeof (RecoRate_em));
   memset (RecoRate_ep, 0, sizeof (RecoRate_ep));
 
-
+ 
   ///////////////////////////////////////////////////////////////////////////////
   //
   //
@@ -48,7 +51,7 @@ void AnalyzeOutput(){
   //
   //
   ///////////////////////////////////////////////////////////////////////////////
-
+  
   for (Int_t i_bw=bw_ini; i_bw<bw_fin+1; i_bw++){
     
     bw[i_bw-bw_ini] = i_bw;
@@ -66,9 +69,10 @@ void AnalyzeOutput(){
     Double_t fittedR_even;
     Double_t fittedR_odd;
     Double_t drEvenToOdd;
+    Int_t RecoCharge;
 
-    t_em->SetBranchAddress("nCALCDCHit", &nCALCDCHit);
-    t_em->SetBranchAddress("nRecoHit", &nRecoHit);
+    t_em->SetBranchAddress("nCALCDCHit", &nCALCDCHit);    
+t_em->SetBranchAddress("nRecoHit", &nRecoHit);
     t_em->SetBranchAddress("RecoMaxWireLayerId", &RecoMaxWireLayerId);
     t_em->SetBranchAddress("Reco_ifCL3", &Reco_ifCL3);
     t_em->SetBranchAddress("ifSingleTurn", &ifSingleTurn);
@@ -76,6 +80,7 @@ void AnalyzeOutput(){
     t_em->SetBranchAddress("fittedR_even", &fittedR_even);
     t_em->SetBranchAddress("fittedR_odd", &fittedR_odd);
     t_em->SetBranchAddress("drEvenToOdd", &drEvenToOdd);
+    t_em->SetBranchAddress("RecoCharge", &RecoCharge);
 
     Int_t TotalHit=0;
     Int_t Total_RecoHit=0;
@@ -83,10 +88,13 @@ void AnalyzeOutput(){
     for (Int_t i_evt=0; i_evt<t_em->GetEntries(); i_evt++){      
       t_em->GetEntry(i_evt);
       
-      // Acceptance
+      // Acceptance && Charge MisIdentification
 
       if (Reco_ifCL3==1 && RecoMaxWireLayerId>=4 && nRecoHit>=30 && drEvenToOdd<14 && fittedR_even<40 && fittedR_odd<40){
 	Acceptance_em[i_bw-bw_ini]++;
+	if (RecoCharge==1){
+	  MisCIDRate_em[i_bw-bw_ini]++;
+	}
       }
 
       // Reco Rate
@@ -95,13 +103,14 @@ void AnalyzeOutput(){
       Total_RecoHit+=nRecoHit;
     }
 
+    MisCIDRate_em[i_bw-bw_ini]=MisCIDRate_em[i_bw-bw_ini]/Double_t(Acceptance_em[i_bw-bw_ini])*100;
     Acceptance_em[i_bw-bw_ini]=Acceptance_em[i_bw-bw_ini]/NumOfEvt*100;
     RecoRate_em[i_bw-bw_ini]=Double_t(Total_RecoHit)/(TotalHit)*100.0;
-
+    
     f_em->cd();
     f_em->Close();
   }
-
+  
   ///////////////////////////////////////////////////////////////////////////////
   //
   //
@@ -127,6 +136,7 @@ void AnalyzeOutput(){
     Double_t fittedR_even;
     Double_t fittedR_odd;
     Double_t drEvenToOdd;
+    Int_t RecoCharge;
 
     t_ep->SetBranchAddress("nCALCDCHit", &nCALCDCHit);
     t_ep->SetBranchAddress("nRecoHit", &nRecoHit);
@@ -137,6 +147,7 @@ void AnalyzeOutput(){
     t_ep->SetBranchAddress("fittedR_even", &fittedR_even);
     t_ep->SetBranchAddress("fittedR_odd", &fittedR_odd);
     t_ep->SetBranchAddress("drEvenToOdd", &drEvenToOdd);
+    t_ep->SetBranchAddress("RecoCharge", &RecoCharge);
 
     Int_t TotalHit=0;
     Int_t Total_RecoHit=0;
@@ -148,6 +159,9 @@ void AnalyzeOutput(){
 
       if (Reco_ifCL3==1 && RecoMaxWireLayerId>=4 && nRecoHit>=30 && drEvenToOdd<14 && fittedR_even<45 && fittedR_odd<45){
 	Acceptance_ep[i_bw-bw_ini]++;
+	if (RecoCharge==-1){
+	  MisCIDRate_ep[i_bw-bw_ini]++;
+	}
       }
 
       // Reco Rate
@@ -156,10 +170,11 @@ void AnalyzeOutput(){
       Total_RecoHit+=nRecoHit;
     }
 
+    MisCIDRate_ep[i_bw-bw_ini]=MisCIDRate_ep[i_bw-bw_ini]/Double_t(Acceptance_ep[i_bw-bw_ini])*100;
     Acceptance_ep[i_bw-bw_ini]=Acceptance_ep[i_bw-bw_ini]/NumOfEvt*100;
     RecoRate_ep[i_bw-bw_ini]=Double_t(Total_RecoHit)/(TotalHit)*100.0;
 
-    std::cout <<      Acceptance_em[i_bw-bw_ini] << "   " << RecoRate_em[i_bw-bw_ini] << "   " <<  Acceptance_ep[i_bw-bw_ini] << "   " << RecoRate_ep[i_bw-bw_ini] << std::endl;
+    std::cout <<  Acceptance_em[i_bw-bw_ini] << "   " << MisCIDRate_em[i_bw-bw_ini] << "   " << RecoRate_em[i_bw-bw_ini]  << "   " <<  Acceptance_ep[i_bw-bw_ini] << "   " << MisCIDRate_ep[i_bw-bw_ini] << "   " << RecoRate_ep[i_bw-bw_ini] << std::endl;
 
 
     f_ep->cd();
@@ -167,8 +182,8 @@ void AnalyzeOutput(){
   }
   
 
-  TCanvas *c_div = new TCanvas("canvas", "canvas", 1000, 500);
-  c_div->Divide(2,1);
+  TCanvas *c_div = new TCanvas("canvas", "canvas", 1500, 500);
+  c_div->Divide(3,1);
   TPad *pad1_1 = new TPad("pad1","",0,0,1,1);
   TPad *pad1_2 = new TPad("pad2","",0,0,1,1);
   pad1_1->SetFillStyle(4000);
@@ -178,15 +193,26 @@ void AnalyzeOutput(){
 
   TPad *pad2_1 = new TPad("pad1","",0,0,1,1);
   TPad *pad2_2 = new TPad("pad2","",0,0,1,1);
+  pad2_1->SetFillStyle(4000);
+  pad2_1->SetFrameFillStyle(0);
   pad2_2->SetFillStyle(4000);
   pad2_2->SetFrameFillStyle(0);
 
+  TPad *pad3_1 = new TPad("pad1","",0,0,1,1);
+  TPad *pad3_2 = new TPad("pad2","",0,0,1,1);
+  pad3_2->SetFillStyle(4000);
+  pad3_2->SetFrameFillStyle(0);
+
   TMultiGraph *mg1 = new TMultiGraph(); 
   TGraph *grAcceptance_em= new TGraph(bw_fin-bw_ini+1, bw, Acceptance_em);
+  TGraph *grMisCIDRate_em= new TGraph(bw_fin-bw_ini+1, bw, MisCIDRate_em);
   TGraph *grRecoRate_em= new TGraph(bw_fin-bw_ini+1, bw, RecoRate_em);
+
   TGraph *grAcceptance_ep= new TGraph(bw_fin-bw_ini+1, bw, Acceptance_ep);
+  TGraph *grMisCIDRate_ep= new TGraph(bw_fin-bw_ini+1, bw, MisCIDRate_ep);
   TGraph *grRecoRate_ep= new TGraph(bw_fin-bw_ini+1, bw, RecoRate_ep);
 
+  ///////////////////////////////////////////////////////////////////////
   c_div->cd(1);
   pad1_1->Draw();
   pad1_1->cd();
@@ -208,11 +234,34 @@ void AnalyzeOutput(){
   grAcceptance_ep->GetYaxis()->SetTitle("Acceptance of e+ (%)");
   grAcceptance_ep->Draw("LPAY+");
 
-  ////////////////////////////////////////////////////////////////////
-
+  /////////////////////////////////////////////////////////////////////
+  
   c_div->cd(2);
   pad2_1->Draw();
   pad2_1->cd();
+  grMisCIDRate_em->SetTitle("Mis Charge Identification Rate");
+  grMisCIDRate_em->SetMarkerStyle(20);
+  grMisCIDRate_em->SetMarkerColor(4);
+  grMisCIDRate_em->GetYaxis()->SetRangeUser(0,1);
+  grMisCIDRate_em->GetYaxis()->SetAxisColor(4);
+  grMisCIDRate_em->GetYaxis()->SetTitle("Mis CID of e- as e+ (%)");
+  grMisCIDRate_em->GetXaxis()->SetTitle("Band Width of Circle");
+  grMisCIDRate_em->Draw("ALP");
+  
+  pad2_2->Draw();
+  pad2_2->cd();
+  grMisCIDRate_ep->SetMarkerStyle(20);
+  grMisCIDRate_ep->SetMarkerColor(2);
+  grMisCIDRate_ep->GetYaxis()->SetRangeUser(5,15);
+  grMisCIDRate_ep->GetYaxis()->SetAxisColor(2);
+  grMisCIDRate_ep->GetYaxis()->SetTitle("Mis CID of e+ as e- (%)");
+  grMisCIDRate_ep->Draw("LPAY+");
+  
+  ////////////////////////////////////////////////////////////////////
+
+  c_div->cd(3);
+  pad3_1->Draw();
+  pad3_1->cd();
   grRecoRate_em->SetTitle("Signal Hits Recognition Rate");
   grRecoRate_em->SetMarkerStyle(20);
   grRecoRate_em->SetMarkerColor(38);
@@ -221,8 +270,8 @@ void AnalyzeOutput(){
   grRecoRate_em->GetXaxis()->SetTitle("Band Width of Circle");
   grRecoRate_em->Draw("ALP");
   
-  pad2_2->Draw();
-  pad2_2->cd();
+  pad3_2->Draw();
+  pad3_2->cd();
   grRecoRate_ep->SetTitle("Signal Hits Recognition Rate");
   grRecoRate_ep->SetMarkerStyle(20);
   grRecoRate_ep->SetMarkerColor(46);
@@ -230,7 +279,7 @@ void AnalyzeOutput(){
   grRecoRate_ep->Draw("LPA");
 
   //////////////////////////////////
-  
+
 
 }
 

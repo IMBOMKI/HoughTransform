@@ -22,6 +22,7 @@
 #include <cmath>
 #include <tuple>
 
+
 Double_t ConfTransX(Double_t x, Double_t y);
 Double_t ConfTransY(Double_t x, Double_t y);
 Double_t HoughTrans(Double_t x, Double_t y, Double_t theta);
@@ -30,16 +31,12 @@ std::vector<std::pair<Double_t,Double_t> > makeOrigins(Double_t rad_uncertainty,
 Int_t findMaxpoint(std::vector<Int_t> vec);
 Bool_t ifInsideBand(Double_t x, Double_t y, Double_t cX, Double_t cY, Double_t outerR, Double_t interR);
 Bool_t ifInsideVec(Int_t element, std::vector<Int_t> vec);
-/*
 Double_t twoPtDistance(Double_t x1, Double_t y1, Double_t x2, Double_t y2);
-Bool_t ifInsideClusterSet(std::tuple< Double_t, Double_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet);
-void FindMatchedCluster(std::tuple< Double_t, Double_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet);
-Bool_t ifLayerIsEmptyInCluster(Int_t layer,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet);
-*/
 bool sortFunction (int i,int j) { return (i<j); }
 void MakeCluster(std::vector<Int_t> &WireIds, std::vector<std::vector< Int_t> > &ClusterSet, Int_t WireNumberInLayer);
 bool ifInsideArray(Int_t wireid, Int_t *reco_ids, Int_t arr_size);
-
+std::pair<Double_t, Double_t> getRotatedXY(std::pair<Double_t, Double_t> xy, Double_t deg);
+Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Double_t, Double_t> ref1, std::pair<Double_t, Double_t> ref2);
 
 void HoughTransform_BandIter_ep(int bw){
 
@@ -52,6 +49,7 @@ void HoughTransform_BandIter_ep(int bw){
   TFile *f_out = new TFile(TString(outputdir+outputfileName),"recreate");
   TTree *t_out = t->CloneTree(0);
 
+  Int_t eventId;
   Int_t nCDCHit;
   Double_t CDCHitX[30000];
   Double_t CDCHitY[30000];
@@ -71,7 +69,7 @@ void HoughTransform_BandIter_ep(int bw){
   Int_t WireMaxLayerId;
   Int_t WireId[30000];
 
-
+  Int_t PDGNumber;
   Double_t genTrE;
   Double_t genTrPx;
   Double_t genTrPy;
@@ -88,7 +86,13 @@ void HoughTransform_BandIter_ep(int bw){
   Bool_t ifSingleTurn;
   Bool_t ifMultiTurn;
 
+  Int_t nSTLTrigIndex;
+  Int_t STLTrigIndex[200];
+  Int_t nCRKTrigIndex;
+  Int_t CRKTrigIndex[200];
+  //std::vector < std::tuple<std::vector <Int_t>, std::vector <Int_t>, Double_t > > CTHTrigInfo;
 
+  t->SetBranchAddress("eventId", &eventId);
   t->SetBranchAddress("nCDCHit", &nCDCHit);
   t->SetBranchAddress("CDCHitX", CDCHitX);  
   t->SetBranchAddress("CDCHitY", CDCHitY);  
@@ -107,6 +111,7 @@ void HoughTransform_BandIter_ep(int bw){
   t->SetBranchAddress("WireMaxLayerId", &WireMaxLayerId);
   t->SetBranchAddress("WireId", WireId);
 
+  t->SetBranchAddress("PDGNumber", &PDGNumber);
   t->SetBranchAddress("genTrE", &genTrE);
   t->SetBranchAddress("genTrPx", &genTrPx);
   t->SetBranchAddress("genTrPy", &genTrPy);
@@ -120,19 +125,28 @@ void HoughTransform_BandIter_ep(int bw){
   t->SetBranchAddress("TrigSTLTime", TrigSTLTime);
   t->SetBranchAddress("TrigCRKTime", TrigCRKTime);
   t->SetBranchAddress("MaxCDCLayerId", &MaxCDCLayerId);
+  t->SetBranchAddress("nCDCHitPrimary", &nCDCHitPrimary);
   t->SetBranchAddress("ifSingleTurn", &ifSingleTurn);
   t->SetBranchAddress("ifMultiTurn", &ifMultiTurn);
-  t->SetBranchAddress("nCDCHitPrimary", &nCDCHitPrimary);
+
+  t->SetBranchAddress("nSTLTrigIndex", &nSTLTrigIndex);
+  t->SetBranchAddress("STLTrigIndex", STLTrigIndex);
+  t->SetBranchAddress("nCRKTrigIndex", &nCRKTrigIndex);
+  t->SetBranchAddress("CRKTrigIndex", CRKTrigIndex);
+
+  //t->SetBranchAddress("CTHTrigInfo", &CTHTrigInfo);
   
   Int_t nRecoHit;
   Double_t RecoWireEnd0X[30000];
   Double_t RecoWireEnd0Y[30000];
+  Double_t RecoWireEnd0Z[30000];
   Double_t RecoWireEnd1X[30000];
   Double_t RecoWireEnd1Y[30000];
+  Double_t RecoWireEnd1Z[30000];
   Double_t RecoCDCDriftDist[30000];
   Int_t RecoWireLayerId[30000];
   Int_t RecoWireId[30000];
-  Int_t RecoPID;
+  Int_t RecoCharge;
   Int_t RecoMaxWireLayerId;
   Bool_t Reco_ifCL3;
   Bool_t Reco_ifSingleTurn;
@@ -145,15 +159,16 @@ void HoughTransform_BandIter_ep(int bw){
   t_out->Branch("nRecoHit", &nRecoHit, "nRecoHit/I");
   t_out->Branch("RecoWireEnd0X", RecoWireEnd0X, "RecoWireEnd0X[nRecoHit]/D");
   t_out->Branch("RecoWireEnd0Y", RecoWireEnd0Y, "RecoWireEnd0Y[nRecoHit]/D");
+  t_out->Branch("RecoWireEnd0Z", RecoWireEnd0Z, "RecoWireEnd0Z[nRecoHit]/D");
   t_out->Branch("RecoWireEnd1X", RecoWireEnd1X, "RecoWireEnd1X[nRecoHit]/D");
   t_out->Branch("RecoWireEnd1Y", RecoWireEnd1Y, "RecoWireEnd1Y[nRecoHit]/D");
+  t_out->Branch("RecoWireEnd1Z", RecoWireEnd0Z, "RecoWireEnd1Z[nRecoHit]/D");
   t_out->Branch("RecoCDCDriftDist", RecoCDCDriftDist, "RecoCDCDriftDist[nRecoHit]/D");
   t_out->Branch("RecoWireLayerId", RecoWireLayerId, "RecoWireLayerId[nRecoHit]/I");
   t_out->Branch("RecoWireId", RecoWireId, "RecoWireId[nRecoHit]/I");
-  t_out->Branch("RecoPID", &RecoPID, "RecoPID/I");
+  t_out->Branch("RecoCharge", &RecoCharge, "RecoCharge/I");
   t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/D");
   t_out->Branch("drEvenToOdd", &drEvenToOdd, "drEvenToOdd/D");
-  t_out->Branch("TruthZ1", &TruthZ1, "TruthZ1/D");
   t_out->Branch("RecoMaxWireLayerId", &RecoMaxWireLayerId, "RecoMaxWireLayerId/I");
   t_out->Branch("Reco_ifCL3", &Reco_ifCL3, "Reco_ifCL3/O");
   t_out->Branch("Reco_ifSingleTurn", &Reco_ifSingleTurn, "Reco_ifSingleTurn/O");
@@ -171,13 +186,34 @@ void HoughTransform_BandIter_ep(int bw){
   TH1F *diff_hist = new TH1F("diff","fitpT-truthpT",200,-100,100) ;
   TH1F *rad_even_hist = new TH1F("rad_even_hist","rad_even_hist", 100, 0, 50);
   TH1F *rad_odd_hist = new TH1F("rad_odd_hist","rad_odd_hist", 100, 0, 50);
-  TH2F *ref_even_dist = new TH2F("ref_even_dist", "ref_even_dist", 30, -10, 10, 30, -10, 10);
-  TH2F *ref_odd_dist = new TH2F("ref_odd_dist", "ref_odd_dist", 30, -10, 10, 30, -10, 10);
+  TH2F *ref_even_dist = new TH2F("ref_even_dist", "ref_even_dist", 10, -10, 10, 10, -10, 10);
+  TH2F *ref_odd_dist = new TH2F("ref_odd_dist", "ref_odd_dist", 10, -10, 10, 10, -10, 10);
  
   TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);
-
+  /*
+  TCanvas *c_useful = new TCanvas("c_useful", "c_useful", 1000,1000);
+  c_useful->Divide(2,2);
+  */
   Int_t NumOfLayers=18;
-  Int_t NumOfWiresPerLayer[18]={198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300};
+  Int_t NumOfWiresPerLayer[18]={198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300}; // Count only "Actual" Sense Wires
+  Double_t LayerRadius[18]={53.0, 54.6, 56.2, 57.8, 59.4, 61.0, 62.6, 64.2, 65.8, 67.4, 69.0, 70.6, 72.2, 73.8, 75.4, 77.0, 78.6, 80.2};
+  Double_t LayerStereo_TDR[18]={-67.899, 67.640, -67.384, 67.129, -66.876, 66.625, -66.376, 66.129, -65.884, 65.640, -65.398, 65.158, -64.920, 64.683, -75.132, 74.862, -74.593, 74.326}; // After ICEDUST modified we should use this one!
+  Double_t LayerStereo_CAL[18]={-67.004, 66.778, -66.553, 66.327, -66.102, 65.877, -65.652, 65.428, -65.205, 64.982, -64.761, 64.540, -64.319, 64.100, -74.472, 74.220, -73.969, 73.719}; // Up to now, we use this one...
+  Double_t ZOffset[18]={-73.6843, -73.9348,-74.2353,-74.5358, -74.7863, -75.0868, 0,0,0,0,0,0,0,0,0,0,0,0};
+
+  //////// Trigger Hodoscope Variables  ////////
+
+  Int_t NumOfCTH=64;
+  Double_t STLRad=48.28;
+  Double_t STLWidth=9.;
+  Double_t STLHeight=0.5;
+  Double_t STLTiltAngle=13.;
+  Double_t CRKRad=44.78;
+  Double_t CRKWidth=9.;
+  Double_t CRKHeight=1.;
+  Double_t CRKTiltAngle=20.;
+
+  //////// HoughTransform Variables //////// 
 
   Int_t niter=3;
   Int_t nBins=100;
@@ -199,12 +235,8 @@ void HoughTransform_BandIter_ep(int bw){
 
   /////////////////////////////////////
 
-  for (Int_t i_evt=0; i_evt < t->GetEntries(); i_evt++){
+  for (Int_t i_evt=0; i_evt<t->GetEntries(); i_evt++){
     t->GetEntry(i_evt);    
-
-    std::cout << "-------------------------" << std::endl;
-    std::cout << i_evt <<"-th Event"<< std::endl;           
-    std::cout << "MC Hit NDF: " << nCALCDCHit << std::endl;
 
     ///////////////////
     // Pre Track Cut //
@@ -227,11 +259,13 @@ void HoughTransform_BandIter_ep(int bw){
     nRecoHit=0;
     memset (RecoWireEnd0X, 0, sizeof(RecoWireEnd0X)); 
     memset (RecoWireEnd0Y, 0, sizeof(RecoWireEnd0Y)); 
+    memset (RecoWireEnd0Z, 0, sizeof(RecoWireEnd0Z)); 
     memset (RecoWireEnd1X, 0, sizeof(RecoWireEnd1X)); 
     memset (RecoWireEnd1Y, 0, sizeof(RecoWireEnd1Y)); 
+    memset (RecoWireEnd1Z, 0, sizeof(RecoWireEnd1Z)); 
     memset (RecoCDCDriftDist, 0, sizeof(RecoCDCDriftDist));
     memset (RecoWireLayerId, 0, sizeof(RecoWireLayerId));
-    RecoPID=0;
+    RecoCharge=0;
     TruthZ1=0;
     RecoMaxWireLayerId=0;
     Reco_ifCL3=0;
@@ -243,14 +277,21 @@ void HoughTransform_BandIter_ep(int bw){
     std::vector<Int_t> LayerId;
     Int_t nEvenhits=0;
     Int_t nOddhits=0;    
-    Double_t WireEnd0X_even[10000];
-    Double_t WireEnd0Y_even[10000];  
-    Double_t WireEnd0X_odd[10000];
-    Double_t WireEnd0Y_odd[10000];
+    Double_t WireEnd0X_even[30000];
+    Double_t WireEnd0Y_even[30000];  
+    Double_t WireEnd0X_odd[30000];
+    Double_t WireEnd0Y_odd[30000];
 
-    Double_t ConfX[100000];
-    Double_t ConfY[100000];
-
+    Double_t ConfX[30000];
+    Double_t ConfY[30000];
+    /*    
+    Int_t nConfEven=0;
+    Int_t nConfOdd=0;
+    Double_t ConfX_even[3000];
+    Double_t ConfX_odd[3000];
+    Double_t ConfY_even[3000];
+    Double_t ConfY_odd[3000];
+    */
     Int_t deg_index;    
     Int_t rho_index;
     Int_t do_not_use;
@@ -272,6 +313,23 @@ void HoughTransform_BandIter_ep(int bw){
 
     for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
 
+      /*
+      Double_t theta0=TMath::ATan(WireEnd0Y[i_hit]/WireEnd0X[i_hit]);
+      Double_t theta1=TMath::ATan(WireEnd1Y[i_hit]/WireEnd1X[i_hit]);;
+
+      Int_t layernumber=WireLayerId[i_hit];
+      Double_t tiltAngle=TMath::ATan(2*LayerRadius[layernumber]/(WireEnd1Z[i_hit]-WireEnd0Z[i_hit]) * TMath::Sin((theta1-theta0)/2));
+      //std::cout << layernumber <<"   " << tiltAngle<< "   " << TMath::Tan(LayerStereo[layernumber]/1000) << "   " << theta1-theta0 << std::endl;
+      //std::cout << layernumber <<"   " << LayerRadius[layernumber]/(WireEnd1Z[i_hit]-WireEnd0Z[i_hit])* (theta1-theta0) << "   " << TMath::Tan(LayerStereo[layernumber]/1000) << std::endl;
+
+    
+      
+      Double_t distance = sqrt(pow(WireEnd1X[i_hit]-WireEnd0X[i_hit],2)+pow(WireEnd1Y[i_hit]-WireEnd0Y[i_hit],2)+pow(WireEnd1Z[i_hit]-WireEnd0Z[i_hit],2));
+      std::cout <<WireLayerId[i_hit]  <<"   " <<  TMath::ACos((WireEnd1Z[i_hit]-WireEnd0Z[i_hit])/(distance)) << "    " << LayerStereo[WireLayerId[i_hit]]/1000 << "   "<< sqrt(pow(WireEnd0X[i_hit],2)+pow(WireEnd0Y[i_hit],2))  << "   " << LayerRadius[WireLayerId[i_hit]] <<std::endl;
+      
+      std::cout <<WireLayerId[i_hit]  <<"   " <<  WireEnd0Z[i_hit] << "   " << WireEnd1Z[i_hit] << std::endl;
+      */
+
       // Sort Even, Odd Hit
       if ((WireLayerId[i_hit]+1)%2==0){
 	WireEnd0X_even[nEvenhits]=WireEnd0X[i_hit];
@@ -289,10 +347,9 @@ void HoughTransform_BandIter_ep(int bw){
       if(std::find(WireIdsPerLayer[layerid].begin(), WireIdsPerLayer[layerid].end(), WireId[i_hit]) != WireIdsPerLayer[layerid].end()){
 	continue;
       }
-      WireIdsPerLayer[layerid].push_back(WireId[i_hit]);    	  
-      
+      WireIdsPerLayer[layerid].push_back(WireId[i_hit]);    	        
     }
-    
+
     // Sort one more time from smallest to biggest 
     // + Make Clusters and push into ClusterSet
     
@@ -337,16 +394,40 @@ void HoughTransform_BandIter_ep(int bw){
 	    
             else if (ifInsideDisk(oriX,oriY)==1){
 	      
-	      /*---------------------------------------
+	      /*------------------------------------------
 		|                                        |
 		|      Conformal Transformation          |
 		|                                        |
 		-----------------------------------------*/
-	      	      	      
+	      
+	      memset(ConfX,0,sizeof(ConfX));
+	      memset(ConfY,0,sizeof(ConfY));	    
+
+	      /*  
+	      memset(ConfX_even,0,sizeof(ConfX_even));
+	      memset(ConfY_even,0,sizeof(ConfY_even));
+	      memset(ConfX_odd,0,sizeof(ConfX_odd));
+	      memset(ConfY_odd,0,sizeof(ConfY_odd));	      
+	      nConfEven=0;
+	      nConfOdd=0;
+	      */    	      
 	      for (Int_t i_hit=0; i_hit<nCALCDCHit ; i_hit++){   
 		ConfX[i_hit] = ConfTransX(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
 		ConfY[i_hit] = ConfTransY(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
+		/*
+		if ((WireLayerId[i_hit]+1)%2 == 0){ //even
+		  ConfX_even[nConfEven] =  ConfTransX(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
+		  ConfY_even[nConfEven] =  ConfTransY(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
+		  nConfEven++;
+		}
+		else if ((WireLayerId[i_hit]+1)%2 == 1){ //even
+		  ConfX_odd[nConfOdd] =  ConfTransX(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
+		  ConfY_odd[nConfOdd] =  ConfTransY(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
+		  nConfOdd++;
+		}
+		*/
 	      }
+
 	      
 	      /*-------------------------------------------
 		|                                         |
@@ -446,10 +527,10 @@ void HoughTransform_BandIter_ep(int bw){
       
       Int_t nRecoHit_even=0;
       Int_t nRecoHit_odd=0;
-      Double_t RecoWireEnd0X_even[10000];
-      Double_t RecoWireEnd0Y_even[10000];
-      Double_t RecoWireEnd0X_odd[10000];
-      Double_t RecoWireEnd0Y_odd[10000];
+      Double_t RecoWireEnd0X_even[30000];
+      Double_t RecoWireEnd0Y_even[30000];
+      Double_t RecoWireEnd0X_odd[30000];
+      Double_t RecoWireEnd0Y_odd[30000];
       Double_t outerR_even = rad_even + bandwidth/2.0;
       Double_t interR_even = rad_even - bandwidth/2.0;
       Double_t outerR_odd = rad_odd + bandwidth/2.0;
@@ -466,8 +547,10 @@ void HoughTransform_BandIter_ep(int bw){
 
 	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
 	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
+	    RecoWireEnd0Z[nRecoHit]=WireEnd0Z[i_hit];
 	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
 	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
+	    RecoWireEnd1Z[nRecoHit]=WireEnd1Z[i_hit];
 	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
 	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
 	    RecoWireId[nRecoHit]=WireId[i_hit];
@@ -486,8 +569,10 @@ void HoughTransform_BandIter_ep(int bw){
 
 	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
 	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
+	    RecoWireEnd0Z[nRecoHit]=WireEnd0Z[i_hit];
 	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
 	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
+	    RecoWireEnd1Z[nRecoHit]=WireEnd1Z[i_hit];
 	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
 	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
 	    RecoWireId[nRecoHit]=WireId[i_hit];
@@ -539,7 +624,7 @@ void HoughTransform_BandIter_ep(int bw){
 	}
       }
   
-      std::cout << "Num Of Ids to be Recognized: " << WireIdsToBeReco.size() << std::endl;
+      //std::cout << "Num Of Ids to be Recognized: " << WireIdsToBeReco.size() << std::endl;
 
       for (Int_t i_hit=0; i_hit<nCALCDCHit; i_hit++){
 	if (ifInsideVec(WireId[i_hit],WireIdsToBeReco)==1){
@@ -551,8 +636,11 @@ void HoughTransform_BandIter_ep(int bw){
 	    
 	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
 	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
+	    RecoWireEnd0Z[nRecoHit]=WireEnd0Z[i_hit];
 	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
 	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
+	    RecoWireEnd1Z[nRecoHit]=WireEnd1Z[i_hit];
+
 	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
 	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
 	    RecoWireId[nRecoHit]=WireId[i_hit];
@@ -570,8 +658,10 @@ void HoughTransform_BandIter_ep(int bw){
 	    
 	    RecoWireEnd0X[nRecoHit]=WireEnd0X[i_hit];
 	    RecoWireEnd0Y[nRecoHit]=WireEnd0Y[i_hit];
+	    RecoWireEnd0Z[nRecoHit]=WireEnd0Z[i_hit];
 	    RecoWireEnd1X[nRecoHit]=WireEnd1X[i_hit];
 	    RecoWireEnd1Y[nRecoHit]=WireEnd1Y[i_hit];
+	    RecoWireEnd1Z[nRecoHit]=WireEnd1Z[i_hit];
 	    RecoCDCDriftDist[nRecoHit]=CDCDriftDist[i_hit];
 	    RecoWireLayerId[nRecoHit]=WireLayerId[i_hit];
 	    RecoWireId[nRecoHit]=WireId[i_hit];
@@ -595,33 +685,52 @@ void HoughTransform_BandIter_ep(int bw){
       Double_t abs_cY_even=cY_even+ref_even.second;
       Double_t abs_cX_odd=cX_odd+ref_odd.first;
       Double_t abs_cY_odd=cY_odd+ref_odd.second;      
-      std::vector<Int_t> domain1_layer;
-      std::vector<Int_t> domain2_layer;
+      std::vector< Int_t > domain1_layer;
+      std::vector< TVector3 > domain1_wireend0;
+      std::vector< TVector3 > domain1_wireend1;
+      std::vector< Int_t > domain2_layer;
+      std::vector< TVector3 > domain2_wireend0;
+      std::vector< TVector3 > domain2_wireend1;
+
 
       Double_t slope_even = cY_even/cX_even;
       Double_t slope_odd  = cY_odd/cX_odd;
 
       for (Int_t i_reco=0; i_reco<nRecoHit; i_reco++){
+	TVector3 wireend0(RecoWireEnd0X[i_reco],RecoWireEnd0Y[i_reco],RecoWireEnd0Z[i_reco]);
+	TVector3 wireend1(RecoWireEnd1X[i_reco],RecoWireEnd1Y[i_reco],RecoWireEnd1Z[i_reco]);
+
+
 	if ((RecoWireLayerId[i_reco]+1)%2 == 0){ //even
 
+	  Double_t cross=RecoWireEnd0X[i_reco]*abs_cY_even-RecoWireEnd0Y[i_reco]*abs_cX_even;
 	  Double_t LHS= RecoWireEnd0Y[i_reco];
 	  Double_t RHS= slope_even*(RecoWireEnd0X[i_reco]-abs_cX_even)+abs_cY_even;
-	  if (LHS>RHS){
+	  if (cross<=0){
 	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
+	    domain1_wireend0.push_back(wireend0);
+	    domain1_wireend1.push_back(wireend1);
 	  }
-	  else if (LHS<RHS){
+	  else if (cross>0){
 	    domain2_layer.push_back(RecoWireLayerId[i_reco]);
+	    domain2_wireend0.push_back(wireend0);
+	    domain2_wireend1.push_back(wireend1);
 	  }
 	}
 
 	else if ((RecoWireLayerId[i_reco]+1)%2 == 1){ //odd
+	  Double_t cross=RecoWireEnd0X[i_reco]*abs_cY_even-RecoWireEnd0Y[i_reco]*abs_cX_even;
 	  Double_t LHS= RecoWireEnd0Y[i_reco];
 	  Double_t RHS= slope_odd*(RecoWireEnd0X[i_reco]-abs_cX_odd)+abs_cY_odd;
-	  if (LHS>RHS){
+	  if (cross<=0){
 	    domain1_layer.push_back(RecoWireLayerId[i_reco]);
+	    domain1_wireend0.push_back(wireend0);
+	    domain1_wireend1.push_back(wireend1);
 	  }
-	  else if (LHS<RHS){
+	  else if (cross>0){
 	    domain2_layer.push_back(RecoWireLayerId[i_reco]);
+	    domain2_wireend0.push_back(wireend0);
+	    domain2_wireend1.push_back(wireend1);
 	  }
 	}
       }
@@ -632,191 +741,153 @@ void HoughTransform_BandIter_ep(int bw){
 	}
       }
 
-
       /*--------------------------------
 	|                              |
-	|    Charge Identification     | // Need to Correct
+	|    Charge Identification     |
 	|                              |
 	-------------------------------*/
+     
+      std::vector < Int_t > STLUpIndex;
+      std::vector < Int_t > STLDownIndex;
+      std::vector < Int_t > CRKUpIndex;
+      std::vector < Int_t > CRKDownIndex;  // Up & Down Indices Normalized into NumOfCTH Scale (<64)
 
-      /*
-      Double_t crossZ=abs_cX_odd*abs_cY_even-abs_cY_odd*abs_cX_even;
-      Int_t charge;
+      std::vector < Int_t > STLRecoIndex;
+      std::vector < Int_t > CRKRecoIndex;  // Indices where Hough Circles are passing through
+      std::vector < Bool_t > isIndexClockwise;
 
-      if (crossZ>=0){ // e-
-	RecoPID=11; 
-	charge=-1;
-      } 
-      else if (crossZ<0){ // e+
-	RecoPID=-11; 
-	charge=1;
-      } 
-      */
+      for (Int_t i_stl=0; i_stl<nSTLTrigIndex; i_stl++){      
+	Int_t index=STLTrigIndex[i_stl];
+
+	if (index<NumOfCTH){  //Up 
+	  STLUpIndex.push_back(index);
+	}
+	else if (index>=NumOfCTH){ //Down 
+	  index=(Int_t(1.5*NumOfCTH)-index%NumOfCTH)%NumOfCTH;
+	  STLDownIndex.push_back(index);
+	}
+
+	std::pair<Double_t, Double_t> STLx1y1 = std::make_pair(-STLWidth/2.,-STLHeight/2.);
+	std::pair<Double_t, Double_t> STLx1y2 = std::make_pair(-STLWidth/2.,STLHeight/2.);
+	std::pair<Double_t, Double_t> STLx2y1 = std::make_pair(STLWidth/2.,-STLHeight/2.);
+	std::pair<Double_t, Double_t> STLx2y2 = std::make_pair(STLWidth/2.,STLHeight/2.);
+	Double_t STLRotAngle=-(90-(index+1/2.)*360./NumOfCTH+STLTiltAngle);
+	Double_t xTrans=STLRad*TMath::Cos((index+1/2.)*360./NumOfCTH*TMath::Pi()/180.);
+	Double_t yTrans=STLRad*TMath::Sin((index+1/2.)*360./NumOfCTH*TMath::Pi()/180.);
+
+	STLx1y1=getRotatedXY(STLx1y1, STLRotAngle);
+	STLx1y2=getRotatedXY(STLx1y2, STLRotAngle);
+	STLx2y1=getRotatedXY(STLx2y1, STLRotAngle);
+	STLx2y2=getRotatedXY(STLx2y2, STLRotAngle);
+
+	STLx1y1=std::make_pair(STLx1y1.first+xTrans, STLx1y1.second+yTrans);
+	STLx1y2=std::make_pair(STLx1y2.first+xTrans, STLx1y2.second+yTrans);
+	STLx2y1=std::make_pair(STLx2y1.first+xTrans, STLx2y1.second+yTrans);
+	STLx2y2=std::make_pair(STLx2y2.first+xTrans, STLx2y2.second+yTrans);
+	
+	std::pair <Double_t, Double_t> ref1 = std::make_pair((STLx1y1.first+STLx1y2.first)/2,(STLx1y1.second+STLx1y2.second)/2);
+	std::pair <Double_t, Double_t> ref2 = std::make_pair((STLx2y1.first+STLx2y2.first)/2,(STLx2y1.second+STLx2y2.second)/2);
+	std::pair <Double_t, Double_t> refMid = std::make_pair((ref1.first+ref2.first)/2,(ref1.second+ref2.second)/2);
+	Double_t avg_cX=(abs_cX_even+abs_cX_odd)/2;
+	Double_t avg_cY=(abs_cY_even+abs_cY_odd)/2;
+
+	if (ifCircleIsPassing(rad_even, abs_cX_even, abs_cY_even, ref1, ref2)==1 || ifCircleIsPassing(rad_odd, abs_cX_odd, abs_cY_odd, ref1, ref2)==1){
+	  STLRecoIndex.push_back(index);
+	  Double_t cross = refMid.first*avg_cY-avg_cX*refMid.second;
+	  if (cross>=0){
+	    isIndexClockwise.push_back(1);
+	  }
+	  else if (cross<0){
+	    isIndexClockwise.push_back(0);
+	  }
+	}
+      }
+
+      for (Int_t i_crk=0; i_crk<nCRKTrigIndex; i_crk++){      
+	Int_t index=CRKTrigIndex[i_crk];
+
+	if (index<NumOfCTH){  //Up 
+	  CRKUpIndex.push_back(index);
+	}
+	else if (index>=NumOfCTH){ //Down 
+	  index=(Int_t(1.5*NumOfCTH)-index%NumOfCTH)%NumOfCTH;
+	  CRKDownIndex.push_back(index);
+	}
+
+	std::pair<Double_t, Double_t> CRKx1y1 = std::make_pair(-CRKWidth/2.,-CRKHeight/2.);
+	std::pair<Double_t, Double_t> CRKx1y2 = std::make_pair(-CRKWidth/2.,CRKHeight/2.);
+	std::pair<Double_t, Double_t> CRKx2y1 = std::make_pair(CRKWidth/2.,-CRKHeight/2.);
+	std::pair<Double_t, Double_t> CRKx2y2 = std::make_pair(CRKWidth/2.,CRKHeight/2.);
+	Double_t CRKRotAngle=-(90-(index+1/2.)*360./NumOfCTH+CRKTiltAngle);
+	Double_t xTrans=CRKRad*TMath::Cos((index+1/2.)*360./NumOfCTH*TMath::Pi()/180.);
+	Double_t yTrans=CRKRad*TMath::Sin((index+1/2.)*360./NumOfCTH*TMath::Pi()/180.);
+
+	CRKx1y1=getRotatedXY(CRKx1y1, CRKRotAngle);
+	CRKx1y2=getRotatedXY(CRKx1y2, CRKRotAngle);
+	CRKx2y1=getRotatedXY(CRKx2y1, CRKRotAngle);
+	CRKx2y2=getRotatedXY(CRKx2y2, CRKRotAngle);
+
+	CRKx1y1=std::make_pair(CRKx1y1.first+xTrans, CRKx1y1.second+yTrans);
+	CRKx1y2=std::make_pair(CRKx1y2.first+xTrans, CRKx1y2.second+yTrans);
+	CRKx2y1=std::make_pair(CRKx2y1.first+xTrans, CRKx2y1.second+yTrans);
+	CRKx2y2=std::make_pair(CRKx2y2.first+xTrans, CRKx2y2.second+yTrans);
+	
+	std::pair <Double_t, Double_t> ref1 = std::make_pair((CRKx1y1.first+CRKx1y2.first)/2,(CRKx1y1.second+CRKx1y2.second)/2);
+	std::pair <Double_t, Double_t> ref2 = std::make_pair((CRKx2y1.first+CRKx2y2.first)/2,(CRKx2y1.second+CRKx2y2.second)/2);
+	std::pair <Double_t, Double_t> refMid = std::make_pair((ref1.first+ref2.first)/2,(ref1.second+ref2.second)/2);
+	Double_t avg_cX=(abs_cX_even+abs_cX_odd)/2;
+	Double_t avg_cY=(abs_cY_even+abs_cY_odd)/2;
+
+	if (ifCircleIsPassing(rad_even, abs_cX_even, abs_cY_even, ref1, ref2)==1 || ifCircleIsPassing(rad_odd, abs_cX_odd, abs_cY_odd, ref1, ref2)==1){
+	  CRKRecoIndex.push_back(index);
+	  Double_t cross = refMid.first*avg_cY-avg_cX*refMid.second;
+	  if (cross>=0){
+	    isIndexClockwise.push_back(1);
+	  }
+	  else if (cross<0){
+	    isIndexClockwise.push_back(0);
+	  }
+	}
+      }      
+
+      if (isIndexClockwise.empty()==1){
+	RecoCharge=0; // Non-Classified
+      }
+      else{
+	if (std::find(isIndexClockwise.begin(), isIndexClockwise.end(), 0) == isIndexClockwise.end()){ //vector only contains 1
+	  RecoCharge=1;
+	}
+	else if (std::find(isIndexClockwise.begin(), isIndexClockwise.end(), 1) == isIndexClockwise.end()){ //vector only contains 0
+	  RecoCharge=-1;
+	}
+	else {
+	  RecoCharge=0;
+	}
+      }      
+
+      /*------------------------------------
+	|                                  |
+	|    Other Auxiliary Variables     | 
+	|                                  |
+	-----------------------------------*/
 
       drEvenToOdd = sqrt(pow(abs_cX_even-abs_cX_odd,2)+pow(abs_cY_even-abs_cY_odd,2));
       TruthZ1=CDCHitZ[0];
 
-      ///////////////////////////////////////////////////////////////////////////////////////////////////
-      //                                                                                               //
-      //                                         PLOTTING SECTION                                      //  
-      //                                                                                               //
-      ///////////////////////////////////////////////////////////////////////////////////////////////////
+      /*-------------------
+	|                 |
+	|    Printing     | 
+	|                 |
+	------------------*/
 
-      /*-----------------------------------------
-	|                                         |
-	|   Wire Hit Drawing with Hough Circle    |
-	|                                         |
-	------------------------------------------*/
-      /*      
-      c_hits->cd();
-      c_hits->DrawFrame(-90,-90,90,90);
-      
-      // Wire Layers
-      
-      Double_t WireRad[18] = {53.00,54.60,56.20,57.80,59.40,61.00,62.60,64.20,65.80,67.40,69.00,70.60,72.20,73.80,75.40,77.00,78.60,80.20};
-      
-      for (Int_t i=0; i<18; i++){
-	TEllipse *WireCircle = new TEllipse(0,0,WireRad[i],WireRad[i]);
-	WireCircle->SetFillColor(0);
-	WireCircle->SetFillStyle(4000);
-	WireCircle->SetLineColor(40);
-	WireCircle->Draw();
-      }
-      
-      // Stopping target
-      
-      Double_t DiskRad=10.00;
-      TEllipse *Disk = new TEllipse(0,0,DiskRad,DiskRad);
-      Disk->SetFillColor(40);
-      Disk->SetLineColor(40);
-      Disk->Draw();  
-      
-      // Hough Circles (Even, Odd)
-      
-      TEllipse *circle_even = new TEllipse(abs_cX_even,abs_cY_even,rad_even,rad_even);
-      TEllipse *circle_odd = new TEllipse(abs_cX_odd,abs_cY_odd,rad_odd,rad_odd);
-      TEllipse *center_even = new TEllipse(abs_cX_even,abs_cY_even,0.1,0.1);
-      TEllipse *center_odd = new TEllipse(abs_cX_odd,abs_cY_odd,0.1,0.1);
+      std::cout << "-------------------------" << std::endl;
+      std::cout << i_evt <<"-th Event (EventId: "<< eventId <<")" << std::endl;           
+      std::cout << "MC Hit NDF: " << nCALCDCHit << std::endl;
+      std::cout << "Charge: " << RecoCharge << std::endl;
 
-      circle_even->SetFillColor(0);
-      circle_even->SetFillStyle(4000);
-      circle_even->SetLineColor(4);
-      circle_even->SetLineWidth(1);
-      circle_even->Draw();
-      
-      circle_odd->SetFillColor(0);
-      circle_odd->SetFillStyle(4000);
-      circle_odd->SetLineColor(2);      
-      circle_odd->SetLineWidth(1);
-      circle_odd->Draw();
 
-      center_even->SetFillColor(0);
-      center_even->SetFillStyle(4000);
-      center_even->SetLineColor(4);
-      center_even->SetLineWidth(1);
-      center_even->Draw();
-      
-      center_odd->SetFillColor(0);
-      center_odd->SetFillStyle(4000);
-      center_odd->SetLineColor(2);      
-      center_odd->SetLineWidth(1);
-      center_odd->Draw();
-      
-      // Hits
-      
-      TGraph *grEvenhits = new TGraph(nEvenhits, WireEnd0X_even, WireEnd0Y_even);
-      grEvenhits->SetTitle("Evenhits");
-      grEvenhits->SetMarkerStyle(20);
-      grEvenhits->SetMarkerSize(1);
-      grEvenhits->SetMarkerColor(4);  //even - blue
-      grEvenhits->Draw("P");
-      
-      TGraph *grOddhits = new TGraph(nOddhits, WireEnd0X_odd, WireEnd0Y_odd);
-      grOddhits->SetTitle("Oddhits");
-      grOddhits->SetMarkerStyle(20);
-      grOddhits->SetMarkerSize(1);
-      grOddhits->SetMarkerColor(2);  //odd - red
-      grOddhits->Draw("P");
-      
-      // Recognized Hits
-
-      TGraph *grRecoEvenhits = new TGraph(nRecoHit_even, RecoWireEnd0X_even, RecoWireEnd0Y_even);
-      grRecoEvenhits->SetTitle("RecoEvenhits");  
-      grRecoEvenhits->SetMarkerStyle(20);
-      grRecoEvenhits->SetMarkerSize(1);
-      grRecoEvenhits->SetMarkerColor(38); // Reco_even - right blue
-      grRecoEvenhits->Draw("P");
-      
-      TGraph *grRecoOddhits = new TGraph(nRecoHit_odd, RecoWireEnd0X_odd, RecoWireEnd0Y_odd);
-      grRecoOddhits->SetTitle("RecoOddhits");
-      grRecoOddhits->SetMarkerStyle(20);
-      grRecoOddhits->SetMarkerSize(1);
-      grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
-      grRecoOddhits->Draw("P");      
-
-      // Center crossing line
-
-      Int_t nPoints = 8;
-      Double_t xLine_even[nPoints];
-      Double_t yLine_even[nPoints];
-      Double_t xLine_odd[nPoints];
-      Double_t yLine_odd[nPoints];
-
-      for (Int_t i_line=0; i_line<nPoints; i_line++) {	
-	xLine_even[i_line] = i_line*10;
-	yLine_even[i_line] = slope_even*(xLine_even[i_line]-abs_cX_even)+abs_cY_even;
-      }
-      for (Int_t i_line=0; i_line<nPoints; i_line++) {
-	xLine_odd[i_line] = i_line*10;
-	yLine_odd[i_line] = slope_odd*(xLine_odd[i_line]-abs_cX_odd)+abs_cY_odd;
-      }
-
-      TGraph *crossingLine_even = new TGraph(nPoints, xLine_even, yLine_even);
-      crossingLine_even->SetLineColor(4);
-      crossingLine_even->Draw("L");
-
-      TGraph *crossingLine_odd = new TGraph(nPoints, xLine_odd, yLine_odd);
-      crossingLine_odd->SetLineColor(2);
-      crossingLine_odd->Draw("L");
-      */
       t_out->Fill();
-
   }
-  /*
-  c_div->cd(1);
-  diff_hist->SetLineColor(4);
-  diff_hist->SetFillColor(4);
-  diff_hist->SetFillStyle(3004);
-  diff_hist->Draw();
-
-  c_div->cd(2);
-  rad_even_hist->SetLineColor(4);
-  rad_even_hist->SetFillColor(4);
-  rad_even_hist->SetFillStyle(3004);
-  rad_even_hist->Draw();
-  rad_odd_hist->SetLineColor(2);
-  rad_odd_hist->SetFillColor(2);
-  rad_odd_hist->SetFillStyle(3005);
-  rad_odd_hist->Draw("same");
-
-  c_div->cd(3);
-  truthpT_hist->SetLineColor(1);
-  truthpT_hist->SetFillColor(4);
-  truthpT_hist->SetFillStyle(3004);
-  truthpT_hist->Draw();
-
-  c_div->cd(4);
-  fitpT_hist->SetLineColor(1);
-  fitpT_hist->SetFillColor(4);
-  fitpT_hist->SetFillStyle(3004);
-  fitpT_hist->Draw();
-
-  c_div->cd(5);
-  ref_even_dist->Draw("colz");
-  c_div->cd(6);
-  ref_odd_dist->Draw("colz");
-  
-  */
 
   std::cout << "Finish!" << std::endl;
   
@@ -886,58 +957,12 @@ Bool_t ifInsideVec(Int_t element, std::vector<Int_t> vec){
   }
   return 0;
 }
-/*
+
 Double_t twoPtDistance(Double_t x1, Double_t y1, Double_t x2, Double_t y2){
   return sqrt(pow(x2-x1,2)+pow(y2-y1,2));
 }
 
-Bool_t ifInsideClusterSet(std::tuple< Double_t, Double_t, Int_t> tmpXYL,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet){
-  Bool_t isInside=0;
-  if (ClusterSet.empty()==1){return isInside;}
 
-  for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
-    for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
-      if (tmpXYL == ClusterSet[i_clu][i_ele]){
-	isInside=1;
-	break;
-      }
-    }
-  } 
-
-  return isInside;  
-}
-
-void FindMatchedCluster(std::tuple< Double_t, Double_t, Int_t> tmpXYL, std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet){
-
-  if (!ClusterSet.empty()){
-      for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
-	for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
-	  if (std::get<2>(tmpXYL)==std::get<2>(ClusterSet[i_clu][i_ele])){
-	    if (twoPtDistance(std::get<0>(tmpXYL),std::get<1>(tmpXYL),std::get<0>(ClusterSet[i_clu][i_ele]),std::get<1>(ClusterSet[i_clu][i_ele]))<2){
-	      ClusterSet[i_clu].push_back(tmpXYL);	     	      
-	    }
-	  }
-	}
-      }   
-    }
-}
-
-Bool_t ifLayerIsEmptyInCluster(Int_t layer,std::vector < std::vector <std::tuple <Double_t, Double_t, Int_t> > > ClusterSet){
-  Bool_t isEmpty=1;
-  if (ClusterSet.empty()==1) { return isEmpty;}
-  else if (!ClusterSet.empty()){
-    for (Int_t i_clu=0; i_clu<ClusterSet.size(); i_clu++){
-      for (Int_t i_ele=0; i_ele<ClusterSet[i_clu].size(); i_ele++){
-	if (layer==std::get<2>(ClusterSet[i_clu][i_ele])){
-	  isEmpty=0;
-	  return isEmpty;
-	}
-      }   
-    }
-  }
-  return isEmpty;
-}
-*/
 void MakeCluster(std::vector<Int_t> &WireIds, std::vector<std::vector< Int_t> > &ClusterSet, Int_t WireNumberInLayer)
 {
   if (!WireIds.empty()){
@@ -987,3 +1012,19 @@ bool ifInsideArray(Int_t wireid, Int_t *reco_ids, Int_t arr_size){
   }
   return 0;
 }
+
+std::pair<Double_t, Double_t> getRotatedXY(std::pair<Double_t, Double_t> xy, Double_t deg){
+  Double_t RotX = xy.first*TMath::Cos(deg*TMath::Pi()/180)-xy.second*TMath::Sin(deg*TMath::Pi()/180);
+  Double_t RotY = xy.second*TMath::Cos(deg*TMath::Pi()/180)+xy.first*TMath::Sin(deg*TMath::Pi()/180);  
+  std::pair<Double_t, Double_t> RotatedXY= std::make_pair(RotX, RotY);
+  return RotatedXY;
+};
+
+Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Double_t, Double_t> ref1, std::pair<Double_t, Double_t> ref2){
+  Double_t dist1 = pow(ref1.first-cX,2)+pow(ref1.second-cY,2);
+  Double_t dist2 = pow(ref2.first-cX,2)+pow(ref2.second-cY,2);
+  if (dist1<pow(rad,2) && dist2>pow(rad,2)) return 1;
+  else if (dist1>pow(rad,2) && dist2<pow(rad,2)) return 1;
+  return 0;
+};
+

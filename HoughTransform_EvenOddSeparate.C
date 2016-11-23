@@ -41,7 +41,7 @@ Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Doubl
 void HoughTransform_EvenOddSeparate(){
 
   std::string dir = "../";
-  std::string fileName = "trig_ep92_onlyPrimary.root";
+  std::string fileName = "trig_em104_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
   TTree *t = (TTree*)f->Get("trdata");
   std::string outputdir = "FindedEvents/";
@@ -69,6 +69,7 @@ void HoughTransform_EvenOddSeparate(){
   Int_t WireMaxLayerId;
   Int_t WireId[30000];
 
+  Int_t PDGNumber;
   Double_t genTrE;
   Double_t genTrPx;
   Double_t genTrPy;
@@ -110,6 +111,7 @@ void HoughTransform_EvenOddSeparate(){
   t->SetBranchAddress("WireMaxLayerId", &WireMaxLayerId);
   t->SetBranchAddress("WireId", WireId);
 
+  t->SetBranchAddress("PDGNumber", &PDGNumber);
   t->SetBranchAddress("genTrE", &genTrE);
   t->SetBranchAddress("genTrPx", &genTrPx);
   t->SetBranchAddress("genTrPy", &genTrPy);
@@ -134,7 +136,6 @@ void HoughTransform_EvenOddSeparate(){
 
   //t->SetBranchAddress("CTHTrigInfo", &CTHTrigInfo);
   
-
   Int_t nRecoHit;
   Double_t RecoWireEnd0X[30000];
   Double_t RecoWireEnd0Y[30000];
@@ -190,8 +191,8 @@ void HoughTransform_EvenOddSeparate(){
  
   TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);
   /*
-  TCanvas *c_useful = new TCanvas("c_useful", "c_useful", 1000,1000);
-  c_useful->Divide(2,2);
+  TCanvas *c_useful = new TCanvas("c_useful", "c_useful", 1000,1500);
+  c_useful->Divide(2,3);
   */
   Int_t NumOfLayers=18;
   Int_t NumOfWiresPerLayer[18]={198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300}; // Count only "Actual" Sense Wires
@@ -234,12 +235,8 @@ void HoughTransform_EvenOddSeparate(){
 
   /////////////////////////////////////
 
-  for (Int_t i_evt=0; i_evt<400; i_evt++){
+  for (Int_t i_evt=1; i_evt<5; i_evt++){
     t->GetEntry(i_evt);    
-
-    std::cout << "-------------------------" << std::endl;
-    std::cout << i_evt <<"-th Event (EventId: "<< eventId <<")" << std::endl;           
-    std::cout << "MC Hit NDF: " << nCALCDCHit << std::endl;
 
     ///////////////////
     // Pre Track Cut //
@@ -287,14 +284,14 @@ void HoughTransform_EvenOddSeparate(){
 
     Double_t ConfX[30000];
     Double_t ConfY[30000];
-    /*    
+        
     Int_t nConfEven=0;
     Int_t nConfOdd=0;
     Double_t ConfX_even[3000];
     Double_t ConfX_odd[3000];
     Double_t ConfY_even[3000];
     Double_t ConfY_odd[3000];
-    */
+    
     Int_t deg_index;    
     Int_t rho_index;
     Int_t do_not_use;
@@ -406,14 +403,14 @@ void HoughTransform_EvenOddSeparate(){
 	      memset(ConfX,0,sizeof(ConfX));
 	      memset(ConfY,0,sizeof(ConfY));	    
 
-	      /*  
+	      /*
 	      memset(ConfX_even,0,sizeof(ConfX_even));
 	      memset(ConfY_even,0,sizeof(ConfY_even));
 	      memset(ConfX_odd,0,sizeof(ConfX_odd));
 	      memset(ConfY_odd,0,sizeof(ConfY_odd));	      
 	      nConfEven=0;
 	      nConfOdd=0;
-	      */    	      
+	      */
 	      for (Int_t i_hit=0; i_hit<nCALCDCHit ; i_hit++){   
 		ConfX[i_hit] = ConfTransX(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
 		ConfY[i_hit] = ConfTransY(WireEnd0X[i_hit]-oriX,WireEnd0Y[i_hit]-oriY);
@@ -749,7 +746,6 @@ void HoughTransform_EvenOddSeparate(){
 	|    Charge Identification     |
 	|                              |
 	-------------------------------*/
-
      
       std::vector < Int_t > STLUpIndex;
       std::vector < Int_t > STLDownIndex;
@@ -878,6 +874,17 @@ void HoughTransform_EvenOddSeparate(){
       drEvenToOdd = sqrt(pow(abs_cX_even-abs_cX_odd,2)+pow(abs_cY_even-abs_cY_odd,2));
       TruthZ1=CDCHitZ[0];
 
+      /*-------------------
+	|                 |
+	|    Printing     | 
+	|                 |
+	------------------*/
+
+      std::cout << "-------------------------" << std::endl;
+      std::cout << i_evt <<"-th Event (EventId: "<< eventId <<")" << std::endl;           
+      std::cout << "MC Hit NDF: " << nCALCDCHit << std::endl;
+      std::cout << "Charge: " << RecoCharge << std::endl;
+
       ///////////////////////////////////////////////////////////////////////////////////////////////////
       //                                                                                               //
       //                                         PLOTTING SECTION                                      //  
@@ -988,7 +995,7 @@ void HoughTransform_EvenOddSeparate(){
 
 
       // Hough Circles (Even, Odd)
-      
+     
       TEllipse *circle_even = new TEllipse(abs_cX_even,abs_cY_even,rad_even,rad_even);
       TEllipse *circle_odd = new TEllipse(abs_cX_odd,abs_cY_odd,rad_odd,rad_odd);
       TEllipse *center_even = new TEllipse(abs_cX_even,abs_cY_even,0.1,0.1);
@@ -1038,6 +1045,10 @@ void HoughTransform_EvenOddSeparate(){
       grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
       grRecoOddhits->Draw("P");      
       
+      /*
+      TString figName="hits"+std::to_string(i_evt)+".pdf";
+      c_hits->Print(figName);
+      */
       
       // Center crossing line
       
@@ -1074,7 +1085,7 @@ void HoughTransform_EvenOddSeparate(){
 	|                                 |
 	----------------------------------*/
       /*
-      c_useful->cd(1);
+      c_useful->cd(5);
 
       TGraph *conf_odd = new TGraph(nConfOdd, ConfX_odd, ConfY_odd);
       conf_odd->SetMarkerStyle(20);
@@ -1094,10 +1105,12 @@ void HoughTransform_EvenOddSeparate(){
 	|   Hough Transform  && Voting Plot    |
 	|                                      |
 	---------------------------------------*/
-
-      /*      
+      /*
       TH2F *vote_plot_even = new TH2F("vote_plot_even", "vote_plot_even", nBins, 0, nBins, nBins, 0, nBins);
       TH2F *vote_plot_odd = new TH2F("vote_plot_odd", "vote_plot_odd", nBins, 0, nBins, nBins, 0, nBins);
+      TNtuple * hough = new TNtuple("hough","hough", "rho:theta");
+      TNtuple * hough_odd = new TNtuple("hough_odd","hough_odd", "rho:theta");
+
       Bool_t if_already_vote[nBins][nBins][2];
             
       is_even=1;
@@ -1109,8 +1122,18 @@ void HoughTransform_EvenOddSeparate(){
 	  Double_t rho =HoughTrans(ConfX[i_hit],ConfY[i_hit],deg);	  
 	  Int_t tmp_deg_index = (deg)*nBins/180;
 	  Int_t tmp_rho_index = (rho+rhomax)*nBins/(rhomax-rhomin);
-	  
+
+	  if (is_even==(WireLayerId[i_hit]+1)%2){
+	    hough->Fill(rho,deg);
+	  }
+
+	  else if (is_even!=(WireLayerId[i_hit]+1)%2){
+	    hough_odd->Fill(rho,deg);	  
+	  }	  
+
+
 	  if (is_even==WireLayerId[i_hit]%2 && if_already_vote[tmp_deg_index][tmp_rho_index][0]==0){
+	  
 	    if_already_vote[tmp_deg_index][tmp_rho_index][0]=1;
 	    vote_plot_even->Fill(tmp_deg_index,tmp_rho_index);
 	  }
@@ -1125,13 +1148,37 @@ void HoughTransform_EvenOddSeparate(){
 	  Double_t rho =HoughTrans(ConfX[i_hit],ConfY[i_hit],deg);	  
 	  Int_t tmp_deg_index = (deg)*nBins/180;
 	  Int_t tmp_rho_index = (rho+rhomax)*nBins/(rhomax-rhomin);
-	  
-	  if (is_even==(WireLayerId[i_hit]+1)%2 && if_already_vote[tmp_deg_index][tmp_rho_index][0]==0){
+
+	  if (is_even==(WireLayerId[i_hit])%2 && if_already_vote[tmp_deg_index][tmp_rho_index][0]==0){
 	    if_already_vote[tmp_deg_index][tmp_rho_index][0]=1;
 	    vote_plot_odd->Fill(tmp_deg_index,tmp_rho_index);
 	  }
 	}
       }
+
+      std::cout << "       sadadasdsds  " <<  hough->GetEvent() << std::endl;
+
+      c_useful->cd(1);
+      hough->Draw("rho:theta");
+      TGraph *hough_gr = new TGraph(hough->GetSelectedRows(), hough->GetV2(), hough->GetV1());
+      hough_gr->GetXaxis()->SetTitle("");
+      hough_gr->GetXaxis()->SetRangeUser(0,180);
+      hough_gr->GetYaxis()->SetTitle("");
+      hough_gr->GetYaxis()->SetRangeUser(-0.025,0.025);
+      hough_gr->SetLineWidth(1);
+      hough_gr->Draw("AP");
+      hough->Print();
+
+      c_useful->cd(2);
+      hough_odd->Draw("rho:theta");
+      TGraph *hough_gr_odd = new TGraph(hough_odd->GetSelectedRows(), hough_odd->GetV2(), hough_odd->GetV1());
+      hough_gr_odd->GetXaxis()->SetTitle("");
+      hough_gr_odd->GetXaxis()->SetRangeUser(0,180);
+      hough_gr_odd->GetYaxis()->SetTitle("");
+      hough_gr_odd->GetYaxis()->SetRangeUser(-0.025,0.025);
+      hough_gr_odd->SetLineWidth(1);
+      hough_gr_odd->Draw("AP");
+      hough_odd->Print();
 
       c_useful->cd(3);    
       vote_plot_even->Draw("colz");
