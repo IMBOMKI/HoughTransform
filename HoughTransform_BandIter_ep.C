@@ -21,7 +21,8 @@
 #include <iterator>
 #include <cmath>
 #include <tuple>
-
+#include <time.h>
+#include <stdio.h>
 
 Double_t ConfTransX(Double_t x, Double_t y);
 Double_t ConfTransY(Double_t x, Double_t y);
@@ -40,8 +41,11 @@ Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Doubl
 
 void HoughTransform_BandIter_ep(int bw){
 
+  time_t start,end;
+  time (&start);
+
   std::string dir = "../";
-  std::string fileName = "trig_ep92_onlyPrimary.root";
+  std::string fileName = "trig_ep93_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
   TTree *t = (TTree*)f->Get("trdata");
   std::string outputdir = "FindedEvents/";
@@ -217,7 +221,7 @@ void HoughTransform_BandIter_ep(int bw){
 
   Int_t niter=3;
   Int_t nBins=100;
-  Double_t nPt=1000.0;
+  Double_t nPt=300.0;// Double_t nPt=1000.0;
   Double_t rhomax=0.02;
   Double_t rhomin=-0.02;
 
@@ -890,6 +894,9 @@ void HoughTransform_BandIter_ep(int bw){
   }
 
   std::cout << "Finish!" << std::endl;
+  time (&end);
+  double ElapsedTime = difftime (end,start);
+  std::cout << "Elasped time: " << ElapsedTime << "sec" << std::endl; 
   
   f_out->cd();
   f_out->Write();

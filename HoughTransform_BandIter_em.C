@@ -21,7 +21,8 @@
 #include <iterator>
 #include <cmath>
 #include <tuple>
-
+#include <stdio.h>
+#include <time.h>
 
 Double_t ConfTransX(Double_t x, Double_t y);
 Double_t ConfTransY(Double_t x, Double_t y);
@@ -39,6 +40,9 @@ std::pair<Double_t, Double_t> getRotatedXY(std::pair<Double_t, Double_t> xy, Dou
 Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Double_t, Double_t> ref1, std::pair<Double_t, Double_t> ref2);
 
 void HoughTransform_BandIter_em(int bw){
+
+  time_t start, end;
+  time (&start);
 
   std::string dir = "../";
   std::string fileName = "trig_em104_onlyPrimary.root";
@@ -217,7 +221,7 @@ void HoughTransform_BandIter_em(int bw){
 
   Int_t niter=3;
   Int_t nBins=100;
-  Double_t nPt=1000.0;
+  Double_t nPt=500.0; //Double_t nPt=1000.0;
   Double_t rhomax=0.02;
   Double_t rhomin=-0.02;
 
@@ -889,6 +893,9 @@ void HoughTransform_BandIter_em(int bw){
   }
   
   std::cout << "Finish!" << std::endl;
+  time (&end);
+  double ElapsedTime = difftime(end,start);
+  std::cout << "Elapsed Time: " << ElapsedTime <<"sec" << std::endl;
   
   f_out->cd();
   f_out->Write();

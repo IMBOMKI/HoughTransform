@@ -21,7 +21,8 @@
 #include <iterator>
 #include <cmath>
 #include <tuple>
-
+#include <stdio.h>
+#include <time.h>
 
 Double_t ConfTransX(Double_t x, Double_t y);
 Double_t ConfTransY(Double_t x, Double_t y);
@@ -39,9 +40,12 @@ std::pair<Double_t, Double_t> getRotatedXY(std::pair<Double_t, Double_t> xy, Dou
 Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Double_t, Double_t> ref1, std::pair<Double_t, Double_t> ref2);
 
 void HoughTransform_EvenOddSeparate(){
+  
+  time_t start,end;
+  time (&start);
 
   std::string dir = "../";
-  std::string fileName = "trig_em104_onlyPrimary.root";
+  std::string fileName = "trig_ep92_onlyPrimary.root";
   TFile *f = TFile::Open(TString(dir+fileName));
   TTree *t = (TTree*)f->Get("trdata");
   std::string outputdir = "FindedEvents/";
@@ -217,7 +221,7 @@ void HoughTransform_EvenOddSeparate(){
 
   Int_t niter=3;
   Int_t nBins=100;
-  Double_t nPt=1000.0;
+  Double_t nPt=300.0;   //Double_t nPt=1000.0;
   Double_t rhomax=0.02;
   Double_t rhomin=-0.02;
 
@@ -235,7 +239,7 @@ void HoughTransform_EvenOddSeparate(){
 
   /////////////////////////////////////
 
-  for (Int_t i_evt=1; i_evt<5; i_evt++){
+  for (Int_t i_evt=1; i_evt<7; i_evt++){
     t->GetEntry(i_evt);    
 
     ///////////////////
@@ -883,7 +887,17 @@ void HoughTransform_EvenOddSeparate(){
       std::cout << "-------------------------" << std::endl;
       std::cout << i_evt <<"-th Event (EventId: "<< eventId <<")" << std::endl;           
       std::cout << "MC Hit NDF: " << nCALCDCHit << std::endl;
-      std::cout << "Charge: " << RecoCharge << std::endl;
+      std::cout << "Reco Charge: " << RecoCharge << std::endl;
+      std::cout << "STL Trigger Index: ";
+      for (Int_t i_stl=0; i_stl<nSTLTrigIndex ; i_stl++){
+	std::cout << STLTrigIndex[i_stl] << " ";
+      }
+      std::cout << std::endl;
+      std::cout << "CRK Trigger Index: ";
+      for (Int_t i_crk=0; i_crk<nCRKTrigIndex ; i_crk++){
+	std::cout << CRKTrigIndex[i_crk] << " ";
+      }
+      std::cout << std::endl;
 
       ///////////////////////////////////////////////////////////////////////////////////////////////////
       //                                                                                               //
@@ -995,7 +1009,7 @@ void HoughTransform_EvenOddSeparate(){
 
 
       // Hough Circles (Even, Odd)
-     
+      /*
       TEllipse *circle_even = new TEllipse(abs_cX_even,abs_cY_even,rad_even,rad_even);
       TEllipse *circle_odd = new TEllipse(abs_cX_odd,abs_cY_odd,rad_odd,rad_odd);
       TEllipse *center_even = new TEllipse(abs_cX_even,abs_cY_even,0.1,0.1);
@@ -1012,7 +1026,7 @@ void HoughTransform_EvenOddSeparate(){
       circle_odd->SetLineColor(2);      
       circle_odd->SetLineWidth(1);
       circle_odd->Draw();
-      
+      */
       // Hits
       
       TGraph *grEvenhits = new TGraph(nEvenhits, WireEnd0X_even, WireEnd0Y_even);
@@ -1228,6 +1242,10 @@ void HoughTransform_EvenOddSeparate(){
   ref_odd_dist->Draw("colz");
   
   std::cout << "Finish!" << std::endl;
+  time (&end);
+  double elapsedTime = difftime (end,start);
+  std::cout << "ElapsedTime: " << elapsedTime << "sec" << std::endl;
+
   
   f_out->cd();
   f_out->Write();

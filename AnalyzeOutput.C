@@ -37,13 +37,14 @@ void AnalyzeOutput(){
 
   Double_t RecoRate_em[bw_fin-bw_ini+1];
   Double_t RecoRate_ep[bw_fin-bw_ini+1];
-
+  Double_t RecoRate_Accep_em[bw_fin-bw_ini+1];
+  Double_t RecoRate_Accep_ep[bw_fin-bw_ini+1];
   memset (Acceptance_em, 0, sizeof (Acceptance_em));
   memset (Acceptance_ep, 0, sizeof (Acceptance_ep));
   memset (RecoRate_em, 0, sizeof (RecoRate_em));
   memset (RecoRate_ep, 0, sizeof (RecoRate_ep));
 
- 
+  std::string dir = "./FindedEvents_niter3_nPt300/"; 
   ///////////////////////////////////////////////////////////////////////////////
   //
   //
@@ -55,9 +56,8 @@ void AnalyzeOutput(){
   for (Int_t i_bw=bw_ini; i_bw<bw_fin+1; i_bw++){
     
     bw[i_bw-bw_ini] = i_bw;
-    std::string dir_em = "./FindedEvents/";
     std::string fileName_em = "bw"+std::to_string(i_bw)+"_find_trig_em104_onlyPrimary.root";
-    TFile *f_em = TFile::Open(TString(dir_em+fileName_em));
+    TFile *f_em = TFile::Open(TString(dir+fileName_em));
     TTree *t_em = (TTree*)f_em->Get("trdata");
 
     Int_t nCALCDCHit;
@@ -82,8 +82,10 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
     t_em->SetBranchAddress("drEvenToOdd", &drEvenToOdd);
     t_em->SetBranchAddress("RecoCharge", &RecoCharge);
 
-    Int_t TotalHit=0;
-    Int_t Total_RecoHit=0;
+    Double_t TotalHit=0;
+    Double_t Total_RecoHit=0;
+    Double_t TotalHit_Accep=0;
+    Double_t Total_RecoHit_Accep=0;
 
     for (Int_t i_evt=0; i_evt<t_em->GetEntries(); i_evt++){      
       t_em->GetEntry(i_evt);
@@ -92,6 +94,9 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
 
       if (Reco_ifCL3==1 && RecoMaxWireLayerId>=4 && nRecoHit>=30 && drEvenToOdd<14 && fittedR_even<40 && fittedR_odd<40){
 	Acceptance_em[i_bw-bw_ini]++;
+	TotalHit_Accep+=nCALCDCHit;
+	Total_RecoHit_Accep+=nRecoHit;
+
 	if (RecoCharge==1){
 	  MisCIDRate_em[i_bw-bw_ini]++;
 	}
@@ -106,6 +111,7 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
     MisCIDRate_em[i_bw-bw_ini]=MisCIDRate_em[i_bw-bw_ini]/Double_t(Acceptance_em[i_bw-bw_ini])*100;
     Acceptance_em[i_bw-bw_ini]=Acceptance_em[i_bw-bw_ini]/NumOfEvt*100;
     RecoRate_em[i_bw-bw_ini]=Double_t(Total_RecoHit)/(TotalHit)*100.0;
+    RecoRate_Accep_em[i_bw-bw_ini]=Double_t(Total_RecoHit_Accep)/(TotalHit_Accep)*100.0;
     
     f_em->cd();
     f_em->Close();
@@ -122,9 +128,8 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
   for (Int_t i_bw=bw_ini; i_bw<bw_fin+1; i_bw++){
     
     bw[i_bw-bw_ini] = i_bw;
-    std::string dir_ep = "./FindedEvents/";
-    std::string fileName_ep = "bw"+std::to_string(i_bw)+"_find_trig_ep92_onlyPrimary.root";
-    TFile *f_ep = TFile::Open(TString(dir_ep+fileName_ep));
+    std::string fileName_ep = "bw"+std::to_string(i_bw)+"_find_trig_ep93_onlyPrimary.root";
+    TFile *f_ep = TFile::Open(TString(dir+fileName_ep));
     TTree *t_ep = (TTree*)f_ep->Get("trdata");
 
     Int_t nCALCDCHit;
@@ -149,8 +154,11 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
     t_ep->SetBranchAddress("drEvenToOdd", &drEvenToOdd);
     t_ep->SetBranchAddress("RecoCharge", &RecoCharge);
 
-    Int_t TotalHit=0;
-    Int_t Total_RecoHit=0;
+    Double_t TotalHit=0;
+    Double_t Total_RecoHit=0;
+    Double_t TotalHit_Accep=0;
+    Double_t Total_RecoHit_Accep=0;
+
 
     for (Int_t i_evt=0; i_evt<t_ep->GetEntries(); i_evt++){      
       t_ep->GetEntry(i_evt);
@@ -159,6 +167,9 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
 
       if (Reco_ifCL3==1 && RecoMaxWireLayerId>=4 && nRecoHit>=30 && drEvenToOdd<14 && fittedR_even<45 && fittedR_odd<45){
 	Acceptance_ep[i_bw-bw_ini]++;
+	TotalHit_Accep+=nCALCDCHit;
+	Total_RecoHit_Accep+=nRecoHit;
+
 	if (RecoCharge==-1){
 	  MisCIDRate_ep[i_bw-bw_ini]++;
 	}
@@ -170,9 +181,12 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
       Total_RecoHit+=nRecoHit;
     }
 
+    //std::cout <<     MisCIDRate_ep[i_bw-bw_ini] << std::endl;
+
     MisCIDRate_ep[i_bw-bw_ini]=MisCIDRate_ep[i_bw-bw_ini]/Double_t(Acceptance_ep[i_bw-bw_ini])*100;
     Acceptance_ep[i_bw-bw_ini]=Acceptance_ep[i_bw-bw_ini]/NumOfEvt*100;
     RecoRate_ep[i_bw-bw_ini]=Double_t(Total_RecoHit)/(TotalHit)*100.0;
+    RecoRate_Accep_ep[i_bw-bw_ini]=Double_t(Total_RecoHit_Accep)/(TotalHit_Accep)*100.0;
 
     std::cout <<  Acceptance_em[i_bw-bw_ini] << "   " << MisCIDRate_em[i_bw-bw_ini] << "   " << RecoRate_em[i_bw-bw_ini]  << "   " <<  Acceptance_ep[i_bw-bw_ini] << "   " << MisCIDRate_ep[i_bw-bw_ini] << "   " << RecoRate_ep[i_bw-bw_ini] << std::endl;
 
@@ -182,8 +196,8 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
   }
   
 
-  TCanvas *c_div = new TCanvas("canvas", "canvas", 1500, 500);
-  c_div->Divide(3,1);
+  TCanvas *c_div = new TCanvas("canvas", "canvas", 2000, 500);
+  c_div->Divide(4,1);
   TPad *pad1_1 = new TPad("pad1","",0,0,1,1);
   TPad *pad1_2 = new TPad("pad2","",0,0,1,1);
   pad1_1->SetFillStyle(4000);
@@ -198,19 +212,26 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
   pad2_2->SetFillStyle(4000);
   pad2_2->SetFrameFillStyle(0);
 
-  TPad *pad3_1 = new TPad("pad1","",0,0,1,1);
+  TPad *pad3_1 = new TPad("pad1","",0,0,1,1);  // Reco Rate for All Events
   TPad *pad3_2 = new TPad("pad2","",0,0,1,1);
   pad3_2->SetFillStyle(4000);
   pad3_2->SetFrameFillStyle(0);
+
+  TPad *pad4_1 = new TPad("pad1","",0,0,1,1);  // Reco Rate for only Accepted Events
+  TPad *pad4_2 = new TPad("pad2","",0,0,1,1);
+  pad4_2->SetFillStyle(4000);
+  pad4_2->SetFrameFillStyle(0);
 
   TMultiGraph *mg1 = new TMultiGraph(); 
   TGraph *grAcceptance_em= new TGraph(bw_fin-bw_ini+1, bw, Acceptance_em);
   TGraph *grMisCIDRate_em= new TGraph(bw_fin-bw_ini+1, bw, MisCIDRate_em);
   TGraph *grRecoRate_em= new TGraph(bw_fin-bw_ini+1, bw, RecoRate_em);
+  TGraph *grRecoRate_Accep_em= new TGraph(bw_fin-bw_ini+1, bw, RecoRate_Accep_em);
 
   TGraph *grAcceptance_ep= new TGraph(bw_fin-bw_ini+1, bw, Acceptance_ep);
   TGraph *grMisCIDRate_ep= new TGraph(bw_fin-bw_ini+1, bw, MisCIDRate_ep);
   TGraph *grRecoRate_ep= new TGraph(bw_fin-bw_ini+1, bw, RecoRate_ep);
+  TGraph *grRecoRate_Accep_ep= new TGraph(bw_fin-bw_ini+1, bw, RecoRate_Accep_ep);
 
   ///////////////////////////////////////////////////////////////////////
   c_div->cd(1);
@@ -265,7 +286,7 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
   grRecoRate_em->SetTitle("Signal Hits Recognition Rate");
   grRecoRate_em->SetMarkerStyle(20);
   grRecoRate_em->SetMarkerColor(38);
-  grRecoRate_em->GetYaxis()->SetRangeUser(93,99);
+  grRecoRate_em->GetYaxis()->SetRangeUser(93,100);
   grRecoRate_em->GetYaxis()->SetTitle("Recognition Rate (%)");
   grRecoRate_em->GetXaxis()->SetTitle("Band Width of Circle");
   grRecoRate_em->Draw("ALP");
@@ -275,10 +296,30 @@ t_em->SetBranchAddress("nRecoHit", &nRecoHit);
   grRecoRate_ep->SetTitle("Signal Hits Recognition Rate");
   grRecoRate_ep->SetMarkerStyle(20);
   grRecoRate_ep->SetMarkerColor(46);
-  grRecoRate_ep->GetYaxis()->SetRangeUser(93,99);
+  grRecoRate_ep->GetYaxis()->SetRangeUser(93,100);
   grRecoRate_ep->Draw("LPA");
 
   //////////////////////////////////
+
+  c_div->cd(4);
+  pad4_1->Draw();
+  pad4_1->cd();
+  grRecoRate_Accep_em->SetTitle("Signal Hits Recognition Rate for Accepted Events");
+  grRecoRate_Accep_em->SetMarkerStyle(20);
+  grRecoRate_Accep_em->SetMarkerColor(38); // electron(e-) Marker is light blue
+  grRecoRate_Accep_em->GetYaxis()->SetRangeUser(93,100);
+  grRecoRate_Accep_em->GetYaxis()->SetTitle("Recognition Rate (%)");
+  grRecoRate_Accep_em->GetXaxis()->SetTitle("Band Width of Circle");
+  grRecoRate_Accep_em->Draw("ALP");
+  
+  pad4_2->Draw();
+  pad4_2->cd();
+  grRecoRate_Accep_ep->SetTitle("Signal Hits Recognition Rate for Accepted Events");
+  grRecoRate_Accep_ep->SetMarkerStyle(20);  
+  grRecoRate_Accep_ep->SetMarkerColor(46); // positron(e+) Marker is light red
+  grRecoRate_Accep_ep->GetYaxis()->SetRangeUser(93,100);
+  grRecoRate_Accep_ep->Draw("LPA");
+
 
 
 }
